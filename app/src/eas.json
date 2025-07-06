@@ -1,0 +1,29 @@
+{
+  "cli": {
+    "version": ">= 5.9.1"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal"
+    },
+    "preview": {
+      "distribution": "internal",
+      "ios": {
+        "simulator": true
+      }
+    },
+    "production": {
+      "autoIncrement": true
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "appleId": "samkortchmar@gmail.com",
+        "ascAppId": "your-app-store-connect-app-id",
+        "appleTeamId": "YTKY4RVTL8"
+      }
+    }
+  }
+}
