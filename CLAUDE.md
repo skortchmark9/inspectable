@@ -1,217 +1,152 @@
-# Inspection App Architecture
+# Inspection App - Current Status
 
-## Overview
-A React Native/Expo app for field inspections that captures photos with associated audio context. The app continuously records audio in the background, and when a photo is taken, it pairs the last 5-10 seconds of audio with the image for AI-powered labeling.
+## 🎯 **CURRENT STATUS (Working Prototype)**
+✅ **Camera capture working** - Users can take photos  
+✅ **OpenAI Vision integration** - Photos analyzed by GPT-4 Vision API  
+✅ **Label editing flow** - Users can edit suggested labels  
+✅ **Summary screen** - Shows captured items vs checklist  
+✅ **Session persistence** - Data saves across app restarts  
+✅ **Audio recording & transcription** - Continuous recording with OpenAI Whisper  
 
-## Core Technical Components
+## 📱 **Live Implementation**
 
-### 1. Audio Recording System
-**Challenge**: Continuous background audio recording with circular buffer
-**Solution**: 
-- Use `expo-av` Audio API with configurable segment recording (default: 10 seconds)
-- Maintain a 2-segment rolling buffer (20 seconds total coverage)
-- When capture is triggered, send the most recent complete segment
-- **Audio recording only while app is in foreground** (simplifies permissions and implementation)
-- No concatenation needed - one audio file per capture
+### Current Working Features:
+1. **Camera Screen** - Full-screen camera with capture button and recording indicator
+2. **Photo Analysis** - OpenAI GPT-4 Vision identifies equipment 
+3. **Audio Recording** - Continuous recording with visual indicator, mode-based start/stop
+4. **Audio Playback** - Hear recorded audio on label editor screen
+5. **Audio Transcription** - OpenAI Whisper converts speech to text
+6. **Label Editor** - Edit AI suggestions, save inspection items
+7. **Summary View** - List captured items, compare with checklist
+8. **SafeArea Handling** - Proper button positioning on all devices
 
-**Implementation approach**:
-```typescript
-// Configuration
-const AUDIO_SEGMENT_DURATION = 10000; // 10 seconds, configurable
-const MAX_SEGMENTS = 2; // Rolling buffer of 2 segments
-
-// Simple segment management
-const audioSegments: string[] = []; // URIs to audio files
+### File Structure (app/src/):
+```
+app/src/
+├── app/(tabs)/index.tsx        # Main inspection app (✅ Working)
+├── components/
+│   ├── CameraScreen.tsx        # Camera UI with overlay (✅ Fixed positioning)
+│   ├── LabelEditor.tsx         # Post-capture editing (✅ SafeArea fixed)
+│   ├── SummaryScreen.tsx       # Inspection summary (✅ SafeArea fixed)
+│   └── ChecklistItem.tsx       # Checklist item component
+├── hooks/
+│   ├── useAudioRecorder.ts     # Audio recording (✅ Working with expo-audio)
+│   ├── useCamera.ts            # Camera functionality (✅ Working)
+│   └── useLocation.ts          # GPS location services (✅ Working)
+├── utils/
+│   ├── upload.ts               # Upload functions (✅ OpenAI integrated)
+│   ├── openai.ts               # OpenAI Vision & Whisper APIs (✅ Both working)
+│   └── storage.ts              # AsyncStorage persistence (✅ Working)
+├── types/index.ts              # TypeScript interfaces
+└── constants/Config.ts         # Configuration constants
 ```
 
-### 2. Camera System
-- Use `expo-camera` for photo capture
-- Low resolution for fast uploads
-- Optimize for speed - single tap to capture
-- Handle permissions gracefully
-- Store photos in memory as base64 or URIs
+## 🔧 **Technical Implementation**
 
-### 3. Data Models
+### OpenAI Integration (✅ Working):
+- **Function**: `uploadInspectionDataWithOpenAI()` in `utils/upload.ts`
+- **Vision API**: GPT-4 Vision analyzes photos for equipment identification
+- **API Key**: Configured in `utils/openai.ts`
+- **Error Handling**: Fallback responses on API failures
+
+### Audio Implementation (✅ Working):
+- **Package**: Uses `expo-audio` (latest) with `useAudioRecorder` hook
+- **Recording**: Continuous recording during camera mode only
+- **Playback**: Audio playback in label editor using `useAudioPlayer`
+- **Transcription**: OpenAI Whisper API integration working
+- **UI**: Recording indicator shows red dot when active
+
+### Camera Implementation (✅ Working):
+- **Package**: `expo-camera` with `useCameraPermissions`
+- **Features**: Permission handling, low-res photos, base64 capture
+- **UI**: Fixed overlay positioning (no children in CameraView)
+
+### UI/UX Fixes Applied:
+- **SafeAreaView**: Added to all screens
+- **Button Positioning**: Fixed cutoff issues on devices with home indicators
+- **Permission Flow**: Loading states and error screens
+
+## 📋 **Data Models**
 
 ```typescript
 interface InspectionItem {
-  id: string;          // UUID
-  photoUri: string;    // Local URI or base64
-  audioUri: string;    // Local URI to audio file
-  label: string;       // User-editable label
-  suggestedLabel?: string; // From server
-  audioTranscription?: string; // From server - what was said
+  id: string;                    // UUID
+  photoUri: string;              // Local photo URI
+  audioUri: string;              // Local audio recording URI
+  label: string;                 // User-editable label
+  suggestedLabel?: string;       // From OpenAI Vision
+  audioTranscription?: string;   // From OpenAI Whisper
   timestamp: Date;
-  location?: {
-    latitude: number;
-    longitude: number;
-  };
+  location?: { latitude: number; longitude: number };
   uploadStatus: 'pending' | 'uploading' | 'completed' | 'failed';
 }
-
-interface ChecklistItem {
-  id: string;
-  name: string;
-  required: boolean;
-}
-
-interface AppState {
-  isRecording: boolean;
-  inspectionItems: InspectionItem[];
-  audioSegments: string[];
-  currentMode: 'camera' | 'summary';
-  uploadQueue: string[]; // IDs of items to retry
-}
 ```
 
-### 4. State Management
-- Use React Context or top-level useState
-- Manage: audio recording state, camera state, inspection items, UI mode
-- Basic persistence with AsyncStorage for session data
-- Simple upload retry queue (not full offline mode)
+### Hardcoded Checklist:
+- Furnace (required)
+- Thermostat (required) 
+- Breaker Panel (required)
+- Water Heater (required)
+- AC Unit (optional)
+- Attic Insulation (optional)
 
-### 5. Server Integration
-**Upload endpoint**: `POST https://myserver.com/analyze`
-**Payload**: multipart/form-data with:
-- `photo`: image file
-- `audio`: audio file (up to 10 seconds)
-- `metadata`: JSON with timestamp, location
+## 🚧 **Next Development Phase**
 
-**Response**:
+The core inspection app is now fully functional with camera, audio, and AI integration. Ready for:
+
+### Potential Enhancements:
+1. **Audio Segmentation**: Implement 10-second rolling buffer for longer recordings
+2. **Offline Support**: Store data locally when network unavailable
+3. **Export Features**: PDF generation with photos and transcriptions
+4. **Custom Checklists**: User-configurable inspection requirements
+5. **Advanced UI**: Photo markup, voice commands, batch operations
+
+### Current Audio Architecture:
+- **Single Recording**: Continuous recording while on camera screen
+- **Auto-Stop/Start**: Recording stops for photo capture, resumes on return
+- **Immediate Playback**: Audio available for review in label editor
+- **Real-time Transcription**: OpenAI Whisper processes audio on capture
+
+## 🔑 **Key Configuration**
+
+### Dependencies (package.json):
+- `expo-camera: latest` (✅ Working)
+- `expo-audio: latest` (✅ Working)
+- `expo-location: ~18.1.5` (✅ Working)
+- Other standard Expo SDK 53 packages
+
+### Permissions (app.json):
 ```json
-{
-  "suggestedLabel": "Furnace nameplate",
-  "audioTranscription": "Looking at the furnace model number, it's a Carrier 58STA",
-  "confidence": 0.85
-}
+"plugins": [
+  ["expo-camera", { "cameraPermission": "..." }],
+  ["expo-location", { "locationAlwaysAndWhenInUsePermission": "..." }],
+  ["expo-audio", { "microphonePermission": "..." }]
+]
 ```
 
-### 6. UI Flow
+## 🎯 **Testing Notes**
 
-1. **Camera Screen** (default)
-   - Full-screen camera preview
-   - Large capture button at bottom
-   - Audio recording indicator (shows it's actively recording)
-   - "Finish Inspection" button
+### What Works:
+- Camera preview and photo capture with recording indicator
+- OpenAI Vision API analysis 
+- Audio recording with proper start/stop based on screen mode
+- Audio playback in label editor
+- OpenAI Whisper API transcription
+- Label editing and saving
+- Session data persistence
+- Navigation between screens
+- Checklist comparison
 
-2. **Post-Capture Flow**
-   - Show thumbnail of captured photo
-   - Display suggested label (loading state while uploading)
-   - Show audio transcription below label (grayed out, read-only)
-   - Editable text input for label
-   - "Save & Continue" button (returns to camera)
+### What Needs Testing:
+- Long-term audio file management
+- Memory usage with multiple recordings
+- Upload retry logic
+- Offline/network error scenarios
 
-3. **Summary Screen**
-   - List of all captured items with thumbnails
-   - Each item shows:
-     - Photo thumbnail
-     - Label
-     - Audio transcription (expandable)
-     - Timestamp
-   - Checklist comparison showing:
-     - ✓ Captured items
-     - ⚠️ Missing required items
-   - "Export" or "Complete" action
-
-### 7. Key Technical Decisions
-
-**Audio Buffer Management**:
-- Record in configurable segments (default: 10 seconds) while app is active
-- Maintain 2-segment rolling buffer (20 seconds total coverage)
-- On capture, send the most recent complete segment
-- No concatenation needed - one file per capture
-
-**Quick Implementation Choices**:
-- Hardcoded checklist items for now
-- Low photo quality for fast uploads
-- Basic session persistence (AsyncStorage)
-- Simple upload retry queue (but not full offline mode)
-- Configurable audio segment duration via constant
-
-**Memory Management**:
-- Low resolution photos
-- Clean up audio segments after successful upload
-- Limit to 2 audio segments in memory
-
-**Error Handling**:
-- Network failures: queue uploads for retry
-- Permission denials: graceful degradation
-- Audio recording failures: allow photo-only mode
-
-### 8. File Structure
-```
-app/
-├── App.tsx                 # Main entry point
-├── components/
-│   ├── CameraScreen.tsx    # Camera UI and controls
-│   ├── LabelEditor.tsx     # Post-capture label editing
-│   ├── SummaryScreen.tsx   # Inspection summary
-│   └── ChecklistItem.tsx   # Checklist item component
-├── hooks/
-│   ├── useAudioRecorder.ts # Audio recording logic
-│   ├── useCamera.ts        # Camera logic
-│   └── useLocation.ts      # Location tracking
-├── utils/
-│   ├── audioBuffer.ts      # Circular buffer implementation
-│   ├── upload.ts           # Server communication
-│   └── storage.ts          # Local data management
-├── types/
-│   └── index.ts            # TypeScript interfaces
-└── constants/
-    └── index.ts            # API URLs, checklist items
-
-app/with-google-vision/     # User's playground - DO NOT MODIFY
-```
-
-### 9. Implementation Priority
-1. Basic camera + photo capture
-2. Audio recording with buffer (foreground only)
-3. Upload and labeling flow with transcription display
-4. Summary screen with checklist
-5. Polish: location, better UI, error handling
-
-### 10. Hardcoded Checklist (Default)
-```typescript
-const DEFAULT_CHECKLIST: ChecklistItem[] = [
-  { id: '1', name: 'Furnace', required: true },
-  { id: '2', name: 'Thermostat', required: true },
-  { id: '3', name: 'Breaker Panel', required: true },
-  { id: '4', name: 'Water Heater', required: true },
-  { id: '5', name: 'AC Unit', required: false },
-  { id: '6', name: 'Attic Insulation', required: false },
-];
-```
-
-### 11. Configuration Constants
-```typescript
-// Audio settings
-export const AUDIO_SEGMENT_DURATION = 10000; // 10 seconds
-export const AUDIO_QUALITY = Audio.RECORDING_OPTIONS_PRESET_LOW_QUALITY;
-
-// Camera settings  
-export const PHOTO_QUALITY = 0.3; // 30% quality for fast uploads
-
-// Server settings
-export const API_ENDPOINT = 'https://myserver.com/analyze';
-export const UPLOAD_TIMEOUT = 30000; // 30 seconds
-
-// UI settings
-export const MAX_LABEL_LENGTH = 100;
-```
-
-### 12. Testing Approach
-- Test with mock server endpoint first
-- Simulate various permission scenarios
-- Test memory limits with many captures
-- Verify audio buffer behavior
-- Test transcription display and editing flows
-- Test upload retry mechanism
-
-### 13. Future Enhancements
-- Offline mode with full queue management
-- Voice annotations (separate from ambient audio)
+## 💡 **Future Enhancements**
+- Voice commands during inspection
+- Offline mode with sync
+- PDF export with photos and transcriptions
+- Custom checklist configuration
 - Drawing/markup on photos
-- Export to PDF report with transcriptions
 - Integration with inspection databases
-- Search/filter by transcription content
-- Configurable checklists from server
