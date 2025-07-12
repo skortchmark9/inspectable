@@ -10,12 +10,13 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.kortchmar.inspectable",
+      "bundleIdentifier": "com.ungas.core",
       "buildNumber": "1",
       "infoPlist": {
         "NSCameraUsageDescription": "This app needs camera access to capture inspection photos.",
         "NSMicrophoneUsageDescription": "This app needs microphone access to record audio notes during inspections.",
-        "NSLocationWhenInUseUsageDescription": "This app needs location access to tag inspection photos with their location."
+        "NSLocationWhenInUseUsageDescription": "This app needs location access to tag inspection photos with their location.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {

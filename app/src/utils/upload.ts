@@ -1,6 +1,6 @@
 import { API_ENDPOINT, UPLOAD_TIMEOUT } from '../constants/Config';
 import { ServerResponse } from '../types';
-import { analyzeImage, transcribeAudio } from './openai';
+import { apiClient } from '../services/api';
 
 export async function uploadInspectionData(
   photoUri: string,
@@ -70,22 +70,21 @@ export async function uploadInspectionDataWithOpenAI(
   }
 ): Promise<ServerResponse> {
   try {
-    // For now, we'll use base64 from photo URI since we need it for OpenAI
-    // In a real implementation, you'd get this from the camera capture
-    const photoResponse = await fetch(photoUri);
-    const photoBlob = await photoResponse.blob();
-    const photoBase64 = await blobToBase64(photoBlob);
+    console.log('🚀 Starting AI analysis with backend');
     
-    // Analyze image with OpenAI Vision
-    const suggestedLabel = await analyzeImage(photoBase64);
+    // Use backend API for photo analysis
+    const suggestedLabel = await apiClient.analyzePhoto(photoUri);
+    console.log('📷 Photo analysis result:', suggestedLabel);
     
-    // Transcribe audio with OpenAI Whisper (if audio URI is provided)
+    // Use backend API for audio transcription
     let audioTranscription = 'No audio recorded';
     if (audioUri && audioUri !== '') {
       try {
-        audioTranscription = await transcribeAudio(audioUri);
+        console.log('🎵 Starting audio transcription');
+        audioTranscription = await apiClient.transcribeAudio(audioUri);
+        console.log('🎵 Audio transcription result:', audioTranscription);
       } catch (error) {
-        console.error('Audio transcription failed:', error);
+        console.error('❌ Audio transcription failed:', error);
         audioTranscription = 'Audio transcription failed';
       }
     }
@@ -93,17 +92,11 @@ export async function uploadInspectionDataWithOpenAI(
     return {
       suggestedLabel,
       audioTranscription,
-      confidence: 0.85, // Mock confidence score
+      confidence: 0.85,
     };
   } catch (error: any) {
-    console.error('OpenAI upload error:', error);
-    
-    // Return fallback response on error
-    return {
-      suggestedLabel: 'Equipment',
-      audioTranscription: 'Analysis failed',
-      confidence: 0.1,
-    };
+    console.error('💥 Backend API error:', error);
+    throw error; // Re-throw to let caller handle it
   }
 }
 

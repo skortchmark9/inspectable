@@ -14,33 +14,97 @@ import { v4 as uuidv4 } from 'uuid';
 import { CameraScreen } from '@/components/CameraScreen';
 import { LabelEditor } from '@/components/LabelEditor';
 import { SummaryScreen } from '@/components/SummaryScreen';
+import AuthScreen from '@/components/AuthScreen';
+import InspectionSelectScreen from '@/components/InspectionSelectScreen';
 import { useAudioRecorderCustom } from '@/hooks/useAudioRecorder';
 import { useCamera } from '@/hooks/useCamera';
 import { useLocation } from '@/hooks/useLocation';
 import { uploadInspectionDataWithOpenAI } from '@/utils/upload';
 import { saveInspectionItems, loadInspectionItems, clearInspectionItems } from '@/utils/storage';
 import { InspectionItem } from '@/types';
+import { authManager, apiClient } from '@/services/api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-type AppMode = 'camera' | 'editor' | 'summary';
+type AppMode = 'inspection-select' | 'camera' | 'editor' | 'summary';
+
+// Export for debugging in console
+if (__DEV__) {
+  (global as any).authManager = authManager;
+  (global as any).apiClient = apiClient;
+  (global as any).AsyncStorage = AsyncStorage;
+}
 
 export default function InspectionApp() {
-  const [mode, setMode] = useState<AppMode>('camera');
+  const [mode, setMode] = useState<AppMode>('inspection-select');
   const [inspectionItems, setInspectionItems] = useState<InspectionItem[]>([]);
   const [currentItem, setCurrentItem] = useState<InspectionItem | null>(null);
   const [isCapturing, setIsCapturing] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const [currentInspectionId, setCurrentInspectionId] = useState<string | null>(null);
 
   const audioRecorder = useAudioRecorderCustom();
   const camera = useCamera();
   const location = useLocation();
 
-  // Load saved items on startup
+  // Check authentication and load saved items on startup
   useEffect(() => {
-    loadInspectionItems().then(items => {
-      if (items.length > 0) {
-        setInspectionItems(items);
-      }
-    });
+    checkAuthentication();
   }, []);
+
+  const checkAuthentication = async () => {
+    console.log('🔐 Checking authentication status...');
+    try {
+      const email = await authManager.getCurrentUser();
+      console.log('📧 Stored email:', email);
+      
+      // Validate the token with Supabase
+      const isValid = await authManager.validateToken();
+      
+      if (isValid) {
+        console.log('✅ Authentication valid, setting authenticated state');
+        setIsAuthenticated(true);
+        // Don't automatically create inspection - let user choose
+      } else {
+        console.log('❌ Authentication invalid or missing');
+        // Clear any invalid token
+        await authManager.signOut();
+        setIsAuthenticated(false);
+      }
+    } catch (error) {
+      console.error('💥 Auth check failed:', error);
+      setIsAuthenticated(false);
+    } finally {
+      setIsCheckingAuth(false);
+    }
+  };
+
+  const createNewInspection = async () => {
+    try {
+      console.log('🏠 Creating new inspection session...');
+      const inspection = await apiClient.createInspection('Property Address');
+      console.log('✅ Inspection created:', inspection);
+      setCurrentInspectionId(inspection.id);
+    } catch (error: any) {
+      console.error('❌ Failed to create inspection:', error);
+      Alert.alert(
+        'Backend Connection Error', 
+        `Unable to connect to backend server. Error: ${error.message}\n\nPlease check that the backend is deployed on Lovable.`,
+        [{ text: 'OK' }]
+      );
+    }
+  };
+
+  const handleAuthSuccess = async () => {
+    setIsAuthenticated(true);
+    // Don't automatically create inspection - user will choose
+  };
+
+  const handleInspectionSelected = (inspectionId: string) => {
+    console.log('📋 Inspection selected:', inspectionId);
+    setCurrentInspectionId(inspectionId);
+    setMode('camera');
+  };
 
   // Start/stop recording based on current mode and permissions
   useEffect(() => {
@@ -117,26 +181,43 @@ export default function InspectionApp() {
   }, [isCapturing, camera, location]);
 
   const uploadToServer = async (item: InspectionItem) => {
+    console.log('🚀 Starting upload to server for item:', item.id);
+    console.log('📋 Current inspection ID:', currentInspectionId);
+    
     try {
       // Update status to uploading
       updateItemStatus(item.id, 'uploading');
 
-      const response = await uploadInspectionDataWithOpenAI(
+      if (!currentInspectionId) {
+        throw new Error('No inspection session active');
+      }
+
+      console.log('📤 Uploading with data:', {
+        inspectionId: currentInspectionId,
+        hasPhoto: !!item.photoUri,
+        hasAudio: !!item.audioUri,
+        label: item.label,
+      });
+
+      // Upload to backend
+      const response = await apiClient.uploadInspectionItem(
+        currentInspectionId,
         item.photoUri,
         item.audioUri,
-        {
-          timestamp: item.timestamp,
-          location: item.location,
-        }
+        item.label || 'Equipment',
+        item.location,
+        item.audioTranscription
       );
+
+      console.log('✅ Upload successful, response:', response);
 
       // Update item with server response
       setCurrentItem(prev => {
         if (prev && prev.id === item.id) {
           return {
             ...prev,
-            suggestedLabel: response.suggestedLabel,
-            audioTranscription: response.audioTranscription,
+            suggestedLabel: response.suggested_label || response.suggestedLabel,
+            audioTranscription: response.audio_transcription || response.audioTranscription,
             uploadStatus: 'completed',
           };
         }
@@ -144,10 +225,16 @@ export default function InspectionApp() {
       });
 
       updateItemStatus(item.id, 'completed');
-    } catch (error) {
-      console.error('Upload error:', error);
+    } catch (error: any) {
+      console.error('💥 Upload error:', error);
+      console.error('💥 Error stack:', error.stack);
       updateItemStatus(item.id, 'failed');
-      // Could implement retry logic here
+      
+      Alert.alert(
+        'Upload Failed',
+        `Unable to upload inspection item. Error: ${error.message}\n\nThe backend may not be properly configured.`,
+        [{ text: 'OK' }]
+      );
     }
   };
 
@@ -159,7 +246,7 @@ export default function InspectionApp() {
     );
   };
 
-  const handleSaveLabel = (label: string) => {
+  const handleSaveLabel = async (label: string) => {
     if (!currentItem) return;
 
     const updatedItem = { ...currentItem, label };
@@ -167,6 +254,18 @@ export default function InspectionApp() {
     
     // Clean up old audio segments, keeping only the one we used
     audioRecorder.cleanupOldSegments(updatedItem.audioUri);
+    
+    // Update the last inspection item count
+    try {
+      const lastInspectionData = await AsyncStorage.getItem('lastInspection');
+      if (lastInspectionData) {
+        const lastInspection = JSON.parse(lastInspectionData);
+        lastInspection.itemCount = (lastInspection.itemCount || 0) + 1;
+        await AsyncStorage.setItem('lastInspection', JSON.stringify(lastInspection));
+      }
+    } catch (error) {
+      console.error('Error updating item count:', error);
+    }
     
     setCurrentItem(null);
     setMode('camera');
@@ -192,8 +291,10 @@ export default function InspectionApp() {
           style: 'destructive',
           onPress: async () => {
             await clearInspectionItems();
+            await AsyncStorage.removeItem('lastInspection');
             setInspectionItems([]);
-            setMode('camera');
+            setCurrentInspectionId(null);
+            setMode('inspection-select');
           },
         },
       ]
@@ -203,6 +304,58 @@ export default function InspectionApp() {
   const handleBackFromSummary = () => {
     setMode('camera');
   };
+
+  const handleSignOut = async () => {
+    Alert.alert(
+      'Sign Out',
+      'Are you sure you want to sign out?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Sign Out',
+          style: 'destructive',
+          onPress: async () => {
+            await authManager.signOut();
+            await AsyncStorage.removeItem('lastInspection');
+            setIsAuthenticated(false);
+            setCurrentInspectionId(null);
+            setInspectionItems([]);
+            setMode('inspection-select');
+          },
+        },
+      ]
+    );
+  };
+
+  // Debug function to test backend
+  const handleDebugBackend = async () => {
+    const { printDebugInfo } = await import('@/utils/backendTest');
+    const { testInspectionItemsEndpoint, testInspectionsEndpoint } = await import('@/utils/testBackend');
+    
+    console.log('🐛 === STARTING COMPREHENSIVE BACKEND DEBUG ===');
+    await printDebugInfo();
+    
+    console.log('\n🐛 === TESTING SPECIFIC ENDPOINTS ===');
+    await testInspectionsEndpoint();
+    await testInspectionItemsEndpoint();
+    
+    console.log('🐛 === DEBUG COMPLETE ===');
+  };
+
+  // Show loading while checking auth
+  if (isCheckingAuth) {
+    return (
+      <SafeAreaView style={styles.loadingContainer}>
+        <ActivityIndicator size="large" />
+        <Text style={styles.loadingText}>Loading...</Text>
+      </SafeAreaView>
+    );
+  }
+
+  // Show auth screen if not authenticated
+  if (!isAuthenticated) {
+    return <AuthScreen onAuthSuccess={handleAuthSuccess} />;
+  }
 
   // Show loading while checking permissions
   if (camera.hasPermission === null) {
@@ -228,6 +381,12 @@ export default function InspectionApp() {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" />
       
+      {mode === 'inspection-select' && (
+        <InspectionSelectScreen
+          onInspectionSelected={handleInspectionSelected}
+        />
+      )}
+
       {mode === 'camera' && (
         <CameraScreen
           cameraRef={camera.cameraRef}
@@ -254,6 +413,8 @@ export default function InspectionApp() {
           inspectionItems={inspectionItems}
           onComplete={handleCompleteInspection}
           onBack={handleBackFromSummary}
+          onSignOut={handleSignOut}
+          onDebugBackend={handleDebugBackend}
         />
       )}
     </SafeAreaView>

@@ -1,6 +1,7 @@
 {
   "cli": {
-    "version": ">= 5.9.1"
+    "version": ">= 5.9.1",
+    "appVersionSource": "remote"
   },
   "build": {
     "development": {
@@ -21,7 +22,7 @@
     "production": {
       "ios": {
         "appleId": "samkortchmar@gmail.com",
-        "ascAppId": "your-app-store-connect-app-id",
+        "ascAppId": "6748508287",
         "appleTeamId": "YTKY4RVTL8"
       }
     }

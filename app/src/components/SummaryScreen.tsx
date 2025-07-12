@@ -7,18 +7,22 @@ import {
   TouchableOpacity,
   Image,
   SafeAreaView,
+  Alert,
 } from 'react-native';
 import { InspectionItem } from '../types';
 import { DEFAULT_CHECKLIST } from '../constants/Config';
 import { ChecklistItem } from './ChecklistItem';
+import { authManager } from '../services/api';
 
 interface SummaryScreenProps {
   inspectionItems: InspectionItem[];
   onComplete: () => void;
   onBack: () => void;
+  onSignOut?: () => void;
+  onDebugBackend?: () => void;
 }
 
-export function SummaryScreen({ inspectionItems, onComplete, onBack }: SummaryScreenProps) {
+export function SummaryScreen({ inspectionItems, onComplete, onBack, onSignOut, onDebugBackend }: SummaryScreenProps) {
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
 
   const toggleExpanded = (id: string) => {
@@ -109,9 +113,21 @@ export function SummaryScreen({ inspectionItems, onComplete, onBack }: SummarySc
         </View>
       </ScrollView>
 
-      <TouchableOpacity style={styles.completeButton} onPress={onComplete}>
-        <Text style={styles.completeButtonText}>Complete Inspection</Text>
-      </TouchableOpacity>
+      <View style={styles.buttonContainer}>
+        <TouchableOpacity style={styles.completeButton} onPress={onComplete}>
+          <Text style={styles.completeButtonText}>Complete Inspection</Text>
+        </TouchableOpacity>
+        {onSignOut && (
+          <TouchableOpacity style={styles.signOutButton} onPress={onSignOut}>
+            <Text style={styles.signOutButtonText}>Sign Out</Text>
+          </TouchableOpacity>
+        )}
+        {onDebugBackend && (
+          <TouchableOpacity style={styles.debugButton} onPress={onDebugBackend}>
+            <Text style={styles.debugButtonText}>🐛 Debug Backend</Text>
+          </TouchableOpacity>
+        )}
+      </View>
     </SafeAreaView>
   );
 }
@@ -198,18 +214,44 @@ const styles = StyleSheet.create({
     marginTop: 8,
     fontStyle: 'italic',
   },
+  buttonContainer: {
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+  },
   completeButton: {
     backgroundColor: '#007AFF',
     paddingVertical: 16,
-    marginHorizontal: 20,
-    flexGrow: 0,
-    marginVertical: 20,
     borderRadius: 8,
     alignItems: 'center',
+    marginTop: 16,
   },
   completeButtonText: {
     color: '#fff',
     fontSize: 18,
+    fontWeight: '600',
+  },
+  signOutButton: {
+    backgroundColor: '#FF3B30',
+    paddingVertical: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  signOutButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  debugButton: {
+    backgroundColor: '#FF9500',
+    paddingVertical: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  debugButtonText: {
+    color: '#fff',
+    fontSize: 16,
     fontWeight: '600',
   },
 });
