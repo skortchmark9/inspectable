@@ -1,18 +1,98 @@
+export interface Inspection {
+  id: string;
+  name: string;              // Auto-generated: "Dec 15, 2024 - Location"
+  location: {
+    latitude: number;
+    longitude: number;
+    address?: string;      // Geocoded later, hardcoded for now
+  };
+  createdAt: Date;
+  status: 'active' | 'completed';
+  items: InspectionItem[];
+}
+
 export interface InspectionItem {
   id: string;
-  photoUri: string;
-  audioUri: string;
-  label: string;
-  suggestedLabel?: string;
-  audioTranscription?: string;
+  inspectionId: string;
+  photoUri: string;          // Local file path
+  audioUri?: string;         // Local audio file
   timestamp: Date;
+  
+  // AI Processing Results
+  tags?: string[];           // Determines categories dynamically
+  description?: string;      // Full AI-generated description
+  ocr_text?: string;         // Extracted text from image
+  audioTranscription?: string;
+  
+  // Processing State
+  processingStatus: 'pending' | 'processing' | 'completed' | 'failed';
+  lastProcessingAttempt?: Date;
+  retryCount: number;
+  
+  // Legacy fields for backwards compatibility
+  label?: string;
+  suggestedLabel?: string;
   location?: {
     latitude: number;
     longitude: number;
   };
-  uploadStatus: 'pending' | 'uploading' | 'completed' | 'failed';
-  backendId?: string; // ID from backend database
-  equipmentType?: string; // Equipment type from backend
+  uploadStatus?: 'pending' | 'uploading' | 'completed' | 'failed';
+  backendId?: string;
+  equipmentType?: string;
+}
+
+export interface ProcessingAttempt {
+  timestamp: Date;
+  error?: string;
+  httpStatus?: number;
+}
+
+export interface QueueItem {
+  id: string;
+  itemId: string;
+  priority: 'high' | 'normal' | 'low';
+  addedAt: Date;
+  retryAfter?: Date;
+}
+
+export interface ProcessingQueue {
+  items: QueueItem[];
+  isProcessing: boolean;
+  lastProcessedAt?: Date;
+}
+
+// Context types
+export interface AuthContextType {
+  isAuthenticated: boolean;
+  isCheckingAuth: boolean;
+  login: () => Promise<void>;
+  logout: () => Promise<void>;
+}
+
+export interface InspectionContextType {
+  currentInspection: Inspection | null;
+  inspections: Inspection[];
+  createInspection: (name: string, location: { latitude: number; longitude: number; address?: string }) => Promise<Inspection>;
+  setCurrentInspection: (inspection: Inspection | null) => void;
+  addInspectionItem: (item: InspectionItem) => Promise<void>;
+  updateInspectionItem: (itemId: string, updates: Partial<InspectionItem>) => Promise<void>;
+  deleteInspectionItem: (itemId: string) => Promise<void>;
+}
+
+export interface QueueContextType {
+  queue: ProcessingQueue;
+  addToQueue: (itemId: string, priority?: 'high' | 'normal' | 'low') => void;
+  removeFromQueue: (itemId: string) => void;
+  processQueue: () => Promise<void>;
+}
+
+// Tag and categorization types
+export type TagToCategoryMapping = Record<string, string>;
+
+export interface CategoryGroup {
+  name: string;
+  items: InspectionItem[];
+  count: number;
 }
 
 export interface ChecklistItem {

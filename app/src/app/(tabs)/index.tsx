@@ -24,15 +24,12 @@ import { saveInspectionItems, loadInspectionItems, clearInspectionItems } from '
 import { InspectionItem } from '@/types';
 import { authManager, apiClient } from '@/services/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { setupDebugGlobals } from '@/utils/debug';
 
 type AppMode = 'inspection-select' | 'camera' | 'editor' | 'summary';
 
-// Export for debugging in console
-if (__DEV__) {
-  (global as any).authManager = authManager;
-  (global as any).apiClient = apiClient;
-  (global as any).AsyncStorage = AsyncStorage;
-}
+// Setup debug utilities
+setupDebugGlobals();
 
 export default function InspectionApp() {
   const [mode, setMode] = useState<AppMode>('inspection-select');
