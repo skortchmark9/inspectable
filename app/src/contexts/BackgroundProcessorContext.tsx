@@ -76,36 +76,56 @@ export function BackgroundProcessorProvider({ children }: BackgroundProcessorPro
         lastProcessingAttempt: new Date(),
       });
 
-      try {
-        const result = await apiClient.uploadInspectionItem(
-          item.inspectionId,
-          item.photoUri,
-          item.audioUri || null,
-          item.label || 'Inspection Item',
-          item.location,
-          ''
-        );
+      if (item.backendId) {
+        // Item already exists on backend - sync updates
+        try {
+          await apiClient.updateInspectionItem(item.backendId, {
+            tags: item.tags || [],
+            label: item.label,
+            description: item.description,
+            ocr_text: item.ocr_text,
+          });
 
-        updateInspectionItem(item.id, {
-          processingStatus: 'completed',
-          suggestedLabel: result.suggested_label || item.label || 'Inspection Item',
-          audioTranscription: result.audio_transcription || '',
-          backendId: result.id,
-          tags: result.tags || [],
-          description: result.description || '',
-          ocr_text: result.ocr_text || '',
-        });
+          updateInspectionItem(item.id, {
+            processingStatus: 'completed',
+          });
+        } catch (updateError) {
+          console.error('Failed to sync item updates:', updateError);
+          throw updateError;
+        }
+      } else {
+        // New item - upload to backend
+        try {
+          const result = await apiClient.uploadInspectionItem(
+            item.inspectionId,
+            item.photoUri,
+            item.audioUri || null,
+            item.label || 'Inspection Item',
+            item.location,
+            ''
+          );
 
-      } catch (uploadError) {
-        
-        updateInspectionItem(item.id, {
-          processingStatus: 'completed',
-          suggestedLabel: item.label || `Item ${new Date().toLocaleTimeString()}`,
-          audioTranscription: item.audioUri ? 'Audio recorded - backend processing failed' : '',
-          tags: [],
-          description: 'Processing completed locally',
-          ocr_text: '',
-        });
+          updateInspectionItem(item.id, {
+            processingStatus: 'completed',
+            suggestedLabel: result.suggested_label || item.label || 'Inspection Item',
+            audioTranscription: result.audio_transcription || '',
+            backendId: result.id,
+            tags: result.tags || [],
+            description: result.description || '',
+            ocr_text: result.ocr_text || '',
+          });
+
+        } catch (uploadError) {
+          
+          updateInspectionItem(item.id, {
+            processingStatus: 'completed',
+            suggestedLabel: item.label || `Item ${new Date().toLocaleTimeString()}`,
+            audioTranscription: item.audioUri ? 'Audio recorded - backend processing failed' : '',
+            tags: [],
+            description: 'Processing completed locally',
+            ocr_text: '',
+          });
+        }
       }
 
     } catch (error) {

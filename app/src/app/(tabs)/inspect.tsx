@@ -52,7 +52,7 @@ export default function InspectScreen() {
   useEffect(() => {
     if (!isFocused && audioRecorder.isRecording) {
       console.log('Audio Effect: Tab unfocused, stopping recording...');
-      audioRecorder.stopRecording();
+      audioRecorder.stopRecording(false); // Don't save when tab loses focus
     }
   }, [isFocused, audioRecorder.isRecording]);
 

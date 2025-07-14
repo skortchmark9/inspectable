@@ -313,6 +313,30 @@ class InspectionAPIClient {
     }
     return data.data.transcription;
   }
+
+  async updateInspectionItem(itemId: string, updates: any): Promise<any> {
+    const headers = await this.getAuthHeaders();
+    const response = await fetch(`${BASE_URL}/inspection-items/items/${itemId}`, {
+      method: 'PUT',
+      headers: {
+        ...headers,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(updates),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ Update inspection item failed:', response.status, errorText);
+      throw new Error(`Failed to update inspection item: ${response.status}`);
+    }
+
+    const data = await response.json();
+    if (!data.success) {
+      throw new Error(data.error || 'Failed to update inspection item');
+    }
+    return data.data;
+  }
 }
 
 export const authManager = AuthManager.getInstance();

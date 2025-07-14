@@ -122,6 +122,7 @@ export interface BackendInspectionItem {
   photo_url: string;
   audio_url: string;
   label: string;
+  tags: string[];
   suggested_label?: string;
   audio_transcription?: string;
   timestamp: string;
@@ -131,6 +132,8 @@ export interface BackendInspectionItem {
   };
   equipment_type?: string;
   notes?: string;
+  ocr_text?: string;
+  description?: string;
 }
 
 export interface BackendInspection {

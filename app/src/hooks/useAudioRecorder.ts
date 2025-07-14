@@ -79,7 +79,7 @@ export function useAudioRecorderCustom() {
     getLatestAudioSegment,
     cleanupOldSegments,
     startRecording,
-    stopRecording: async () => {
+    stopRecording: async (shouldSave: boolean = true) => {
       if (audioRecorder.isRecording) {
         console.log('Audio: Stopping recording...');
         console.log('Audio: Recorder ID before stop:', audioRecorder.id);
@@ -87,6 +87,11 @@ export function useAudioRecorderCustom() {
         await audioRecorder.stop();
         console.log('Audio: Recording stopped, URI:', audioRecorder.uri);
         console.log('Audio: Recorder ID after stop:', audioRecorder.id);
+        
+        if (!shouldSave) {
+          console.log('Audio: Not saving recording');
+          return null;
+        }
         
         // Copy to unique filename to prevent overwriting
         if (audioRecorder.uri) {

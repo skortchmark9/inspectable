@@ -107,8 +107,9 @@ export function InspectionProvider({ children }: InspectionProviderProps) {
                 photoUri: item.photo_url || '',
                 audioUri: item.audio_url,
                 timestamp: new Date(item.timestamp),
-                tags: [], // Will be populated when backend is updated
-                description: item.notes,
+                tags: Array.isArray(item.tags) ? item.tags : (item.tags ? [item.tags] : []),
+                description: item.description || item.notes,
+                ocr_text: item.ocr_text,
                 processingStatus: 'completed',
                 retryCount: 0,
                 // Legacy fields for compatibility
