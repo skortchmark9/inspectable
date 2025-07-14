@@ -3,6 +3,7 @@ import * as Crypto from 'expo-crypto';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { InspectionContextType, Inspection, InspectionItem } from '@/types';
 import { apiClient } from '@/services/api';
+import { useAuth } from './AuthContext';
 
 const InspectionContext = createContext<InspectionContextType | undefined>(undefined);
 
@@ -29,6 +30,7 @@ export function InspectionProvider({ children }: InspectionProviderProps) {
   const [inspections, setInspections] = useState<Inspection[]>([]);
   const loadingRef = useRef(false);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const { isAuthenticated } = useAuth();
 
   // Derive currentInspection from inspections array
   const currentInspection = React.useMemo(() => {
@@ -38,13 +40,16 @@ export function InspectionProvider({ children }: InspectionProviderProps) {
   }, [currentInspectionId, inspections]);
 
   useEffect(() => {
+    if (!isAuthenticated) {
+      return;
+    } 
     loadInspections();
     return () => {
       if (saveTimeoutRef.current) {
         clearTimeout(saveTimeoutRef.current);
       }
     };
-  }, []);
+  }, [isAuthenticated]);
 
   const loadInspections = useCallback(async () => {
     if (loadingRef.current) return;

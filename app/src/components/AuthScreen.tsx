@@ -12,16 +12,14 @@ import {
   SafeAreaView,
 } from 'react-native';
 import { authManager } from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 
-interface AuthScreenProps {
-  onAuthSuccess: () => void;
-}
-
-export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
+export default function AuthScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSignUp, setIsSignUp] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const { login } = useAuth();
 
   const handleAuth = async () => {
     if (!email || !password) {
@@ -34,10 +32,11 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
       if (isSignUp) {
         await authManager.signUp(email, password);
         Alert.alert('Success', 'Account created successfully!');
+        // After signup, automatically sign in
+        await login(email, password);
       } else {
-        await authManager.signIn(email, password);
+        await login(email, password);
       }
-      onAuthSuccess();
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Authentication failed');
     } finally {

@@ -10,39 +10,14 @@ import {
   FlatList,
 } from 'react-native';
 import { router } from 'expo-router';
-import { useAuth } from '@/contexts/AuthContext';
 import { useInspection } from '@/contexts/InspectionContext';
 import { useLocation } from '@/hooks/useLocation';
 import { Inspection } from '@/types';
-import AuthScreen from '@/components/AuthScreen';
 
 export default function HomeScreen() {
-  const { isAuthenticated, isCheckingAuth } = useAuth();
   const { currentInspection, inspections, createInspection, setCurrentInspection } = useInspection();
   const location = useLocation();
   const [isCreating, setIsCreating] = useState(false);
-
-  if (isCheckingAuth) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#007AFF" />
-          <Text style={styles.loadingText}>Loading...</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  if (!isAuthenticated) {
-    return (
-      <AuthScreen 
-        onAuthSuccess={() => {
-          // Auth success is automatically handled by AuthContext
-          // The component will re-render when isAuthenticated becomes true
-        }} 
-      />
-    );
-  }
 
   const handleNewInspection = async () => {
     setIsCreating(true);
