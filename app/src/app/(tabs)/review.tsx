@@ -1,25 +1,22 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, SafeAreaView, Dimensions, ScrollView, TextInput, Alert, FlatList, KeyboardAvoidingView, Platform, useColorScheme } from 'react-native';
-import { PanGestureHandler, GestureHandlerRootView } from 'react-native-gesture-handler';
-import Animated, { useSharedValue, useAnimatedStyle, useAnimatedGestureHandler, withSpring, runOnJS } from 'react-native-reanimated';
+import React, { useState, useRef } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Image, SafeAreaView, Dimensions, ScrollView, FlatList, useColorScheme } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import Animated, { useSharedValue, withSpring } from 'react-native-reanimated';
 import { useInspection } from '@/contexts/InspectionContext';
 import { InspectionItem } from '@/types';
+import { AssignedCategory, ChecklistCategory } from '@/types/checklist';
+import { PRE_INSPECTION_CHECKLIST } from '@/constants/checklists';
+import { categorizeItemsWithChecklist } from '@/utils/categorization';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import PhotoDetailDrawer from '@/components/PhotoDetailDrawer';
 
 const { width, height } = Dimensions.get('window');
 const ITEM_WIDTH = 80;
 const ITEM_HEIGHT = Math.round(ITEM_WIDTH * (4/3)); // 4:3 aspect ratio for phone photos
-const ITEMS_PER_ROW = 5;
 const MIN_DRAWER_HEIGHT = 180;
 const DEFAULT_DRAWER_HEIGHT = 400;
 const MAX_DRAWER_HEIGHT = height * 0.8;
 
-interface Category {
-  id: string;
-  title: string;
-  items: InspectionItem[];
-  maxItems: number;
-}
 
 export default function ReviewScreen() {
   const { currentInspection, updateInspectionItem, deleteInspectionItem } = useInspection();
@@ -27,10 +24,9 @@ export default function ReviewScreen() {
   const colorScheme = useColorScheme();
   const [editingTags, setEditingTags] = useState(false);
   const [showCustomInput, setShowCustomInput] = useState(false);
-  const [customTag, setCustomTag] = useState('');
+  const [showInfoFor, setShowInfoFor] = useState<string | null>(null);
+  const scrollViewRef = useRef<ScrollView>(null);
   
-  // Common suggested tags
-  const suggestedTags = ['Window', 'Door', 'Wall', 'Ceiling', 'Floor', 'Electrical', 'Plumbing', 'HVAC', 'Exterior', 'Interior'];
   const insets = useSafeAreaInsets();
   
   // Theme-aware colors
@@ -46,34 +42,6 @@ export default function ReviewScreen() {
   const drawerHeight = useSharedValue(DEFAULT_DRAWER_HEIGHT);
   const startHeight = useSharedValue(DEFAULT_DRAWER_HEIGHT);
 
-  const categorizeItems = (items: InspectionItem[]): Category[] => {
-    const homeExteriorKeywords = ['furnace', 'exterior', 'siding', 'roof', 'foundation'];
-    const fuelSwitchingKeywords = ['dryer', 'gas', 'electric', 'switch', 'fuel'];
-    
-    const homeExterior: InspectionItem[] = [];
-    const fuelSwitching: InspectionItem[] = [];
-    const supplemental: InspectionItem[] = [];
-    
-    items.forEach(item => {
-      const label = (item.label || item.suggestedLabel || '').toLowerCase();
-      const tags = (item.tags || []).map(tag => tag.toLowerCase()).join(' ');
-      const searchText = `${label} ${tags}`.trim();
-      
-      if (homeExteriorKeywords.some(keyword => searchText.includes(keyword))) {
-        homeExterior.push(item);
-      } else if (fuelSwitchingKeywords.some(keyword => searchText.includes(keyword))) {
-        fuelSwitching.push(item);
-      } else {
-        supplemental.push(item);
-      }
-    });
-    
-    return [
-      { id: 'home-exterior', title: 'Home Exterior', items: homeExterior, maxItems: 10 },
-      { id: 'fuel-switching', title: 'Fuel Switching - Missing Dryer Label', items: fuelSwitching, maxItems: 10 },
-      { id: 'supplemental', title: 'Supplemental', items: supplemental, maxItems: 10 },
-    ];
-  };
 
   if (!currentInspection) {
     return (
@@ -87,151 +55,50 @@ export default function ReviewScreen() {
   }
 
   const items = Object.values(currentInspection.items || {});
-  const categories = categorizeItems(items);
+  const allCategories = categorizeItemsWithChecklist(items, PRE_INSPECTION_CHECKLIST);
+  
+  // Sort categories: ones with photos first, empty ones at bottom
+  const categories = allCategories.sort((a, b) => {
+    const aHasItems = a.assignedItems.length > 0;
+    const bHasItems = b.assignedItems.length > 0;
+    
+    if (aHasItems && !bHasItems) return -1;
+    if (!aHasItems && bHasItems) return 1;
+    return 0;
+  });
 
-  const handlePhotoPress = (photo: InspectionItem) => {
+  const handlePhotoPress = (photo: InspectionItem, categoryId?: string) => {
+    const wasDrawerClosed = !selectedPhoto;
     setSelectedPhoto(photo);
     setEditingTags(false);
     setShowCustomInput(false);
-    setCustomTag('');
-    // Reset drawer height when selecting a photo
-    drawerHeight.value = withSpring(DEFAULT_DRAWER_HEIGHT, { damping: 20, stiffness: 100 });
+    
+    // Only reset drawer height if no photo was previously selected (drawer was closed)
+    if (wasDrawerClosed) {
+      drawerHeight.value = withSpring(DEFAULT_DRAWER_HEIGHT, { damping: 20, stiffness: 100 });
+      
+      // Simple approach: if selecting from bottom categories, scroll down
+      if (categoryId === 'supplemental' || categoryId === 'fuel-switching') {
+        setTimeout(() => {
+          scrollViewRef.current?.scrollToEnd({ animated: true });
+        }, 300);
+      }
+    }
   };
 
   const closeDrawer = () => {
     setSelectedPhoto(null);
     setEditingTags(false);
     setShowCustomInput(false);
-    setCustomTag('');
   };
 
   const handleDeletePhoto = () => {
-    if (!selectedPhoto || !currentInspection) return;
-    
-    Alert.alert(
-      'Delete Inspection Item',
-      'Are you sure you want to delete this entire inspection item? This will remove the photo, audio, and all associated data.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () => {
-            deleteInspectionItem?.(selectedPhoto.id);
-            closeDrawer();
-          }
-        }
-      ]
-    );
-  };
-
-  const getCurrentTags = (): string[] => {
-    if (!selectedPhoto || !currentInspection) return [];
-    // Get fresh data from the inspection context instead of stale selectedPhoto
-    const freshItem = currentInspection.items[selectedPhoto.id];
-    return freshItem?.tags || [];
-  };
-
-  const addTag = (tag: string) => {
-    if (!selectedPhoto || !tag.trim()) {
-      console.log('❌ Cannot add tag - no photo or empty tag:', { selectedPhoto: !!selectedPhoto, tag });
-      return;
-    }
-    
-    const currentTags = getCurrentTags();
-    if (currentTags.includes(tag)) {
-      console.log('❌ Tag already exists:', tag);
-      return; // Don't add duplicates
-    }
-    
-    console.log('✅ Adding tag:', tag);
-    console.log('Current tags:', currentTags);
-    
-    const newTags = [...currentTags, tag.trim()];
-    console.log('New tags array:', newTags);
-    
-    updateInspectionItem?.(selectedPhoto.id, {
-      tags: newTags,
-      processingStatus: 'pending',
-      lastProcessingAttempt: new Date(),
-    });
-  };
-
-  const removeTag = (tagToRemove: string) => {
     if (!selectedPhoto) return;
-    
-    const currentTags = getCurrentTags();
-    const newTags = currentTags.filter(tag => tag !== tagToRemove);
-    updateInspectionItem?.(selectedPhoto.id, {
-      tags: newTags,
-      processingStatus: 'pending',
-      lastProcessingAttempt: new Date(),
-    });
+    deleteInspectionItem?.(selectedPhoto.id);
+    closeDrawer();
   };
 
-  const handleAddCustomTag = () => {
-    if (customTag.trim()) {
-      addTag(customTag.trim());
-      setCustomTag('');
-      setShowCustomInput(false);
-    }
-  };
-
-  const toggleTagEditing = () => {
-    setEditingTags(!editingTags);
-    setShowCustomInput(false);
-    setCustomTag('');
-  };
-
-  const panGestureHandler = useAnimatedGestureHandler({
-    onStart: () => {
-      startHeight.value = drawerHeight.value;
-    },
-    onActive: (event) => {
-      // Don't allow dragging when editing tags or custom input is shown
-      if (editingTags || showCustomInput) return;
-      
-      const newHeight = startHeight.value - event.translationY;
-      drawerHeight.value = Math.max(MIN_DRAWER_HEIGHT, Math.min(MAX_DRAWER_HEIGHT, newHeight));
-    },
-    onEnd: (event) => {
-      // Don't allow closing when editing tags or custom input is shown
-      if (editingTags || showCustomInput) return;
-      
-      const finalHeight = startHeight.value - event.translationY;
-      
-      // Only close if dragged down significantly AND with some velocity
-      const shouldClose = event.translationY > 50 && event.velocityY > 200;
-      
-      if (shouldClose) {
-        drawerHeight.value = withSpring(0, { damping: 20, stiffness: 100 });
-        runOnJS(closeDrawer)();
-      } else {
-        // Snap back to appropriate height
-        if (finalHeight < 200) {
-          drawerHeight.value = withSpring(MIN_DRAWER_HEIGHT, { damping: 20, stiffness: 100 });
-        } else {
-          drawerHeight.value = withSpring(Math.min(finalHeight, MAX_DRAWER_HEIGHT), { damping: 20, stiffness: 100 });
-        }
-      }
-    },
-  });
-
-  const animatedDrawerStyle = useAnimatedStyle(() => {
-    return {
-      height: drawerHeight.value,
-    };
-  });
-
-  const renderCategoryItem = (item: InspectionItem | null, index: number, category: Category) => {
-    if (!item) {
-      return (
-        <View key={`empty-${category.id}-${index}`} style={styles.emptySlot}>
-          <Text style={styles.emptySlotText}>+</Text>
-        </View>
-      );
-    }
-
+  const renderCategoryItem = (item: InspectionItem, index: number, assignedCategory: AssignedCategory) => {
     return (
       <TouchableOpacity 
         key={item.id}
@@ -239,7 +106,7 @@ export default function ReviewScreen() {
           styles.categoryItem,
           selectedPhoto?.id === item.id && styles.selectedItem
         ]}
-        onPress={() => handlePhotoPress(item)}
+        onPress={() => handlePhotoPress(item, assignedCategory.definition.id)}
       >
         <Image 
           source={{ uri: item.photoUri }} 
@@ -255,30 +122,67 @@ export default function ReviewScreen() {
     );
   };
 
-  const renderCategoryHorizontalItem = ({ item, index }: { item: InspectionItem | null; index: number }, category: Category) => {
-    return renderCategoryItem(item, index, category);
+
+  const renderCategoryInfo = (definition: ChecklistCategory, colors: any) => {
+    const isExpanded = showInfoFor === definition.id;
+    
+    return (
+      <TouchableOpacity 
+        style={styles.infoIcon}
+        onPress={() => setShowInfoFor(isExpanded ? null : definition.id)}
+      >
+        <Text style={[styles.infoText, { color: colors.secondaryText }]}>ⓘ</Text>
+      </TouchableOpacity>
+    );
   };
 
-  const renderCategory = (category: Category, colors: any) => {
-    const slots = Array.from({ length: category.maxItems }, (_, index) => 
-      category.items[index] || null
-    );
+  const renderCategory = (assignedCategory: AssignedCategory, colors: any) => {
+    const { definition, assignedItems } = assignedCategory;
+    const isEmpty = assignedItems.length === 0;
 
     return (
-      <View key={category.id} style={styles.categoryContainer}>
-        <Text style={[styles.categoryTitle, { color: colors.text }]}>{category.title}</Text>
-        <FlatList
-          data={slots}
-          renderItem={({ item, index }) => renderCategoryHorizontalItem({ item, index }, category)}
-          keyExtractor={(item, index) => item?.id || `empty-${category.id}-${index}`}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.categoryItems}
-        />
+      <View 
+        key={definition.id} 
+        style={styles.categoryContainer}
+      >
+        <View style={styles.categoryHeader}>
+          <Text style={[styles.categoryTitle, { color: colors.text }]}>
+            {definition.name}{assignedItems.length > 0 ? ` (${assignedItems.length})` : ''}
+          </Text>
+          {renderCategoryInfo(definition, colors)}
+        </View>
+        
+        {showInfoFor === definition.id && (
+          <View style={styles.keywordsContainer}>
+            <Text style={[styles.keywordsLabel, { color: colors.secondaryText }]}>
+              Looking for tags:
+            </Text>
+            <Text style={[styles.keywordsList, { color: colors.text }]}>
+              {definition.keywords.join(', ')}
+            </Text>
+          </View>
+        )}
+        
+        {isEmpty ? (
+          <View style={styles.emptyCategory}>
+            <Text style={[styles.emptyCategoryText, { color: colors.secondaryText }]}>
+              No photos yet. Looking for: {definition.keywords.slice(0, 3).join(', ')}
+              {definition.keywords.length > 3 ? '...' : ''}
+            </Text>
+          </View>
+        ) : (
+          <FlatList
+            data={assignedItems}
+            renderItem={({ item, index }) => renderCategoryItem(item, index, assignedCategory)}
+            keyExtractor={(item) => item.id}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.categoryItems}
+          />
+        )}
       </View>
     );
   };
-
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -292,153 +196,31 @@ export default function ReviewScreen() {
 
         <View style={styles.contentContainer}>
           <ScrollView 
+            ref={scrollViewRef}
             style={styles.content} 
             showsVerticalScrollIndicator={false}
           >
             {categories.map(category => renderCategory(category, colors))}
           </ScrollView>
 
-          {/* Bottom Drawer for Photo Details */}
+          {/* Photo Detail Drawer */}
           {selectedPhoto && (
-            <KeyboardAvoidingView 
-              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-              keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}
-              style={{ flex: 0 }}
-            >
-              <Animated.View style={[styles.drawerContainer, animatedDrawerStyle]}>
-                <PanGestureHandler onGestureEvent={panGestureHandler}>
-                  <Animated.View style={[styles.dragHandle, { backgroundColor: colors.headerBackground, borderColor: colors.border }]}>
-                    <View style={styles.handleBar} />
-                  </Animated.View>
-                </PanGestureHandler>
-                
-                <View style={[styles.drawerContent, { backgroundColor: colors.headerBackground, borderColor: colors.border }]}>
-                <View style={styles.drawerLeftColumn}>
-                  <View style={styles.drawerPhoto}>
-                    <Image 
-                      source={{ uri: selectedPhoto.photoUri }} 
-                      style={styles.drawerImage}
-                      resizeMode="cover"
-                    />
-                  </View>
-                  
-                  <TouchableOpacity 
-                    style={styles.deleteButton}
-                    onPress={handleDeletePhoto}
-                  >
-                    <Text style={styles.deleteText}>🗑️ Delete Item</Text>
-                  </TouchableOpacity>
-                </View>
-                
-                <View style={styles.drawerDetails}>
-                  <View style={styles.tagsSection}>
-                    <View style={styles.tagsHeader}>
-                      <Text style={[styles.sectionTitle, { color: colors.text }]}>Tags:</Text>
-                      <TouchableOpacity 
-                        style={styles.editButton}
-                        onPress={toggleTagEditing}
-                      >
-                        <Text style={styles.editButtonText}>{editingTags ? 'Done' : 'Edit'}</Text>
-                      </TouchableOpacity>
-                    </View>
-                    
-                    {/* Current Tags */}
-                    <View style={styles.chipsContainer}>
-                      {getCurrentTags().map((tag, index) => (
-                        <View key={index} style={styles.chip}>
-                          <Text style={styles.chipText}>{tag}</Text>
-                          {editingTags && (
-                            <TouchableOpacity 
-                              style={styles.chipRemove}
-                              onPress={() => removeTag(tag)}
-                            >
-                              <Text style={styles.chipRemoveText}>×</Text>
-                            </TouchableOpacity>
-                          )}
-                        </View>
-                      ))}
-                      {getCurrentTags().length === 0 && (
-                        <Text style={[styles.noTagsText, { color: colors.secondaryText }]}>No tags</Text>
-                      )}
-                    </View>
-
-                    {/* Suggested Tags (when editing) */}
-                    {editingTags && (
-                      <View style={styles.suggestedSection}>
-                        <Text style={[styles.suggestedTitle, { color: colors.secondaryText }]}>Suggested:</Text>
-                        <View style={styles.chipsContainer}>
-                          {suggestedTags
-                            .filter(tag => !getCurrentTags().includes(tag))
-                            .slice(0, 6)
-                            .map((tag, index) => (
-                            <TouchableOpacity 
-                              key={index} 
-                              style={styles.suggestedChip}
-                              onPress={() => addTag(tag)}
-                            >
-                              <Text style={styles.suggestedChipText}>+ {tag}</Text>
-                            </TouchableOpacity>
-                          ))}
-                        </View>
-                        
-                        {/* Custom Tag Input */}
-                        {showCustomInput ? (
-                          <View style={styles.customInputRow}>
-                            <TextInput
-                              style={[styles.customInput, { 
-                                backgroundColor: colors.headerBackground, 
-                                borderColor: colors.border,
-                                color: colors.text 
-                              }]}
-                              value={customTag}
-                              onChangeText={setCustomTag}
-                              placeholder="Custom tag"
-                              placeholderTextColor={colors.secondaryText}
-                              autoFocus
-                              onSubmitEditing={handleAddCustomTag}
-                              returnKeyType="done"
-                            />
-                            <TouchableOpacity onPress={handleAddCustomTag} style={styles.addCustomButton}>
-                              <Text style={styles.addCustomButtonText}>Add</Text>
-                            </TouchableOpacity>
-                          </View>
-                        ) : (
-                          <TouchableOpacity 
-                            style={styles.addCustomChip}
-                            onPress={() => setShowCustomInput(true)}
-                          >
-                            <Text style={styles.addCustomChipText}>+ Custom</Text>
-                          </TouchableOpacity>
-                        )}
-                      </View>
-                    )}
-                  </View>
-                  
-                  {selectedPhoto.audioTranscription && (
-                    <View style={styles.section}>
-                      <Text style={[styles.sectionTitle, { color: colors.text }]}>Audio Transcript:</Text>
-                      <ScrollView style={styles.textScrollView} showsVerticalScrollIndicator={false}>
-                        <Text style={[styles.sectionText, { color: colors.secondaryText }]}>
-                          {selectedPhoto.audioTranscription}
-                        </Text>
-                      </ScrollView>
-                    </View>
-                  )}
-                  
-                  {selectedPhoto.description && (
-                    <View style={styles.section}>
-                      <Text style={[styles.sectionTitle, { color: colors.text }]}>Full Description:</Text>
-                      <ScrollView style={styles.textScrollView} showsVerticalScrollIndicator={false}>
-                        <Text style={[styles.sectionText, { color: colors.secondaryText }]}>
-                          {selectedPhoto.description}
-                        </Text>
-                      </ScrollView>
-                    </View>
-                  )}
-                </View>
-              </View>
-            </Animated.View>
-            </KeyboardAvoidingView>
+            <PhotoDetailDrawer
+              selectedPhoto={selectedPhoto}
+              currentInspection={currentInspection}
+              colors={colors}
+              drawerHeight={drawerHeight}
+              startHeight={startHeight}
+              editingTags={editingTags}
+              showCustomInput={showCustomInput}
+              onClose={closeDrawer}
+              onDelete={handleDeletePhoto}
+              onUpdateTags={updateInspectionItem}
+              setEditingTags={setEditingTags}
+              setShowCustomInput={setShowCustomInput}
+              MIN_DRAWER_HEIGHT={MIN_DRAWER_HEIGHT}
+              MAX_DRAWER_HEIGHT={MAX_DRAWER_HEIGHT}
+            />
           )}
         </View>
       </SafeAreaView>
@@ -450,6 +232,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f8f9fa',
+    marginBottom: 20,
   },
   header: {
     padding: 16,
@@ -459,13 +242,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#333',
-    textAlign: 'center',
-    marginBottom: 8,
   },
   inspectionName: {
     fontSize: 16,
@@ -487,6 +263,7 @@ const styles = StyleSheet.create({
   contentContainer: {
     flex: 1,
     flexDirection: 'column',
+    paddingBottom: 40,
   },
   content: {
     flex: 1,
@@ -556,212 +333,6 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 10,
   },
-  // Drawer Styles
-  drawerContainer: {
-    backgroundColor: 'transparent',
-  },
-  dragHandle: {
-    height: 40,
-    backgroundColor: 'white',
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#007AFF',
-    borderBottomWidth: 0,
-    paddingVertical: 10,
-  },
-  handleBar: {
-    width: 60,
-    height: 6,
-    backgroundColor: '#007AFF',
-    borderRadius: 3,
-  },
-  drawerContent: {
-    backgroundColor: 'white',
-    padding: 20,
-    flex: 1,
-    flexDirection: 'row',
-    borderLeftWidth: 2,
-    borderRightWidth: 2,
-    borderBottomWidth: 2,
-    borderColor: '#007AFF',
-  },
-  drawerLeftColumn: {
-    width: 120,
-    marginRight: 16,
-  },
-  drawerPhoto: {
-    width: 120,
-    height: 160,
-    borderRadius: 8,
-    overflow: 'hidden',
-    backgroundColor: '#f0f0f0',
-    marginBottom: 12,
-  },
-  drawerImage: {
-    width: '100%',
-    height: '100%',
-  },
-  drawerDetails: {
-    flex: 1,
-    justifyContent: 'flex-start',
-  },
-  tagsSection: {
-    marginBottom: 12,
-  },
-  tagsHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  editButton: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    backgroundColor: '#007AFF',
-    borderRadius: 4,
-  },
-  editButtonText: {
-    color: 'white',
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  chipsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    marginBottom: 8,
-  },
-  chip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#e3f2fd',
-    borderRadius: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderWidth: 1,
-    borderColor: '#2196f3',
-  },
-  chipText: {
-    fontSize: 12,
-    color: '#1976d2',
-    fontWeight: '500',
-  },
-  chipRemove: {
-    marginLeft: 4,
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: '#f44336',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  chipRemoveText: {
-    color: 'white',
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-  noTagsText: {
-    fontSize: 14,
-    color: '#999',
-    fontStyle: 'italic',
-  },
-  suggestedSection: {
-    marginTop: 8,
-  },
-  suggestedTitle: {
-    fontSize: 12,
-    color: '#666',
-    marginBottom: 6,
-  },
-  suggestedChip: {
-    backgroundColor: '#f5f5f5',
-    borderRadius: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderStyle: 'dashed',
-  },
-  suggestedChipText: {
-    fontSize: 12,
-    color: '#666',
-  },
-  addCustomChip: {
-    backgroundColor: '#f0f8ff',
-    borderRadius: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderWidth: 1,
-    borderColor: '#007AFF',
-    borderStyle: 'dashed',
-    marginTop: 6,
-    alignSelf: 'flex-start',
-  },
-  addCustomChipText: {
-    fontSize: 12,
-    color: '#007AFF',
-    fontWeight: '500',
-  },
-  customInputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 6,
-    gap: 8,
-  },
-  customInput: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    fontSize: 12,
-    backgroundColor: '#fff',
-  },
-  addCustomButton: {
-    backgroundColor: '#007AFF',
-    borderRadius: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  addCustomButtonText: {
-    color: 'white',
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  section: {
-    marginBottom: 12,
-  },
-  textScrollView: {
-    marginTop: 4,
-  },
-  sectionTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 4,
-  },
-  sectionText: {
-    fontSize: 14,
-    color: '#666',
-    lineHeight: 18,
-  },
-  deleteButton: {
-    backgroundColor: '#ff4444',
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 8,
-    alignSelf: 'stretch',
-  },
-  deleteText: {
-    fontSize: 12,
-    color: 'white',
-    fontWeight: '600',
-    textAlign: 'center',
-  },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -778,5 +349,42 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#666',
     textAlign: 'center',
+  },
+  categoryHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  infoIcon: {
+    padding: 4,
+  },
+  infoText: {
+    fontSize: 16,
+    fontWeight: '400',
+  },
+  emptyCategory: {
+    marginBottom: 8,
+  },
+  emptyCategoryText: {
+    fontSize: 12,
+    fontStyle: 'italic',
+    marginBottom: 8,
+    paddingHorizontal: 4,
+  },
+  keywordsContainer: {
+    backgroundColor: 'rgba(0, 122, 255, 0.1)',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 12,
+  },
+  keywordsLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  keywordsList: {
+    fontSize: 12,
+    lineHeight: 16,
   },
 });
