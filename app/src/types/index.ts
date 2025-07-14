@@ -8,7 +8,7 @@ export interface Inspection {
   };
   createdAt: Date;
   status: 'active' | 'completed';
-  items: InspectionItem[];
+  items: Record<string, InspectionItem>; // UUID-keyed map instead of array
 }
 
 export interface InspectionItem {
@@ -65,7 +65,7 @@ export interface ProcessingQueue {
 export interface AuthContextType {
   isAuthenticated: boolean;
   isCheckingAuth: boolean;
-  login: () => Promise<void>;
+  login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -81,7 +81,7 @@ export interface InspectionContextType {
 
 export interface QueueContextType {
   queue: ProcessingQueue;
-  addToQueue: (itemId: string, priority?: 'high' | 'normal' | 'low') => void;
+  addToQueue: (itemId: string, priority?: 'high' | 'normal' | 'low') => Promise<void>;
   removeFromQueue: (itemId: string) => void;
   processQueue: () => Promise<void>;
 }

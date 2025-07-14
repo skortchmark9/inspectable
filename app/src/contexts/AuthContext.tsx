@@ -27,8 +27,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const checkAuthStatus = async () => {
     try {
       setIsCheckingAuth(true);
-      const authStatus = await authManager.getAuthStatus();
-      setIsAuthenticated(authStatus.isAuthenticated);
+      
+      // Check for token and validate with server
+      const token = await authManager.getToken();
+      if (!token) {
+        setIsAuthenticated(false);
+        return;
+      }
+      
+      // Validate token with server
+      const isValid = await authManager.validateToken();
+      setIsAuthenticated(isValid);
+      
+      if (!isValid) {
+        await authManager.signOut();
+      }
     } catch (error) {
       console.error('Auth check failed:', error);
       setIsAuthenticated(false);
@@ -37,11 +50,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   };
 
-  const login = async () => {
+  const login = async (email: string, password: string) => {
     try {
-      // The authManager handles the actual login flow
-      const result = await authManager.signIn();
-      if (result.success) {
+      // Use the actual authManager signIn method
+      const token = await authManager.signIn(email, password);
+      if (token) {
         setIsAuthenticated(true);
       }
     } catch (error) {

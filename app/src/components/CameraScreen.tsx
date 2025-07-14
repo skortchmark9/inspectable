@@ -5,6 +5,7 @@ import {
   TouchableOpacity,
   Text,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { CameraView, CameraType } from 'expo-camera';
 import { InspectionItem } from '../types';
@@ -18,6 +19,7 @@ interface CameraScreenProps {
   onFinishInspection: () => void;
   itemCount: number;
   isCapturing: boolean;
+  lastPhotoUri?: string | null;
 }
 
 export function CameraScreen({
@@ -29,6 +31,7 @@ export function CameraScreen({
   onFinishInspection,
   itemCount,
   isCapturing,
+  lastPhotoUri,
 }: CameraScreenProps) {
   return (
     <View style={styles.container}>
@@ -63,6 +66,16 @@ export function CameraScreen({
       </View>
       
       <View style={styles.bottomContainer}>
+        {/* Thumbnail in bottom left */}
+        <View style={styles.thumbnailContainer}>
+          {lastPhotoUri && (
+            <TouchableOpacity style={styles.thumbnail}>
+              <Image source={{ uri: lastPhotoUri }} style={styles.thumbnailImage} />
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Capture button in center */}
         <TouchableOpacity
           style={[
             styles.captureButton,
@@ -77,6 +90,9 @@ export function CameraScreen({
             <View style={styles.captureButtonInner} />
           )}
         </TouchableOpacity>
+
+        {/* Spacer for layout balance */}
+        <View style={styles.spacer} />
       </View>
     </View>
   );
@@ -142,8 +158,30 @@ const styles = StyleSheet.create({
     bottom: 80,
     left: 0,
     right: 0,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
     pointerEvents: 'auto',
+  },
+  thumbnailContainer: {
+    width: 80,
+    height: 80,
+    justifyContent: 'center',
+    alignItems: 'flex-start',
+  },
+  thumbnail: {
+    width: 60,
+    height: 60,
+    borderRadius: 8,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: '#fff',
+  },
+  thumbnailImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
   },
   captureButton: {
     width: 80,
@@ -163,5 +201,9 @@ const styles = StyleSheet.create({
     height: 64,
     borderRadius: 32,
     backgroundColor: '#fff',
+  },
+  spacer: {
+    width: 80,
+    height: 80,
   },
 });

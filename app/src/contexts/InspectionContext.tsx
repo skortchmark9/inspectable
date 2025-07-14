@@ -1,7 +1,8 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { v4 as uuidv4 } from 'uuid';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import * as Crypto from 'expo-crypto';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { InspectionContextType, Inspection, InspectionItem } from '@/types';
+import { apiClient } from '@/services/api';
 
 const InspectionContext = createContext<InspectionContextType | undefined>(undefined);
 
@@ -21,138 +22,281 @@ interface InspectionProviderProps {
 const STORAGE_KEYS = {
   CURRENT_INSPECTION: '@current_inspection_id',
   INSPECTIONS_LIST: '@inspections',
-  INSPECTION_PREFIX: '@inspection_', // + id
 };
 
 export function InspectionProvider({ children }: InspectionProviderProps) {
-  const [currentInspection, setCurrentInspectionState] = useState<Inspection | null>(null);
+  const [currentInspectionId, setCurrentInspectionId] = useState<string | null>(null);
   const [inspections, setInspections] = useState<Inspection[]>([]);
+  const loadingRef = useRef(false);
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Derive currentInspection from inspections array
+  const currentInspection = React.useMemo(() => {
+    return currentInspectionId 
+      ? inspections.find(inspection => inspection.id === currentInspectionId) || null
+      : null;
+  }, [currentInspectionId, inspections]);
 
   useEffect(() => {
     loadInspections();
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
   }, []);
 
-  const loadInspections = async () => {
-    try {
-      // Load inspections list
-      const inspectionsJson = await AsyncStorage.getItem(STORAGE_KEYS.INSPECTIONS_LIST);
-      const inspectionsList: Inspection[] = inspectionsJson ? JSON.parse(inspectionsJson) : [];
-      setInspections(inspectionsList);
+  const loadInspections = useCallback(async () => {
+    if (loadingRef.current) return;
+    loadingRef.current = true;
 
-      // Load current inspection if set
-      const currentInspectionId = await AsyncStorage.getItem(STORAGE_KEYS.CURRENT_INSPECTION);
-      if (currentInspectionId) {
-        const currentInspectionJson = await AsyncStorage.getItem(
-          STORAGE_KEYS.INSPECTION_PREFIX + currentInspectionId
-        );
-        if (currentInspectionJson) {
-          const inspection: Inspection = JSON.parse(currentInspectionJson);
-          setCurrentInspectionState(inspection);
-        }
+    try {
+      const [inspectionsJson, savedCurrentInspectionId] = await Promise.all([
+        AsyncStorage.getItem(STORAGE_KEYS.INSPECTIONS_LIST),
+        AsyncStorage.getItem(STORAGE_KEYS.CURRENT_INSPECTION)
+      ]);
+
+      const localInspections: Inspection[] = inspectionsJson ? JSON.parse(inspectionsJson) : [];
+      
+      setInspections(localInspections);
+      if (savedCurrentInspectionId) {
+        setCurrentInspectionId(savedCurrentInspectionId);
       }
+
+      loadInspectionsFromBackend();
     } catch (error) {
       console.error('Failed to load inspections:', error);
+    } finally {
+      loadingRef.current = false;
     }
-  };
+  }, []);
 
-  const saveInspection = async (inspection: Inspection) => {
+  const loadInspectionsFromBackend = useCallback(async () => {
     try {
-      // Save individual inspection
-      await AsyncStorage.setItem(
-        STORAGE_KEYS.INSPECTION_PREFIX + inspection.id,
-        JSON.stringify(inspection)
-      );
-
-      // Update inspections list
-      const updatedInspections = inspections.filter(i => i.id !== inspection.id);
-      updatedInspections.push(inspection);
-      await AsyncStorage.setItem(STORAGE_KEYS.INSPECTIONS_LIST, JSON.stringify(updatedInspections));
+      const backendInspections = await apiClient.getInspections();
       
-      setInspections(updatedInspections);
-    } catch (error) {
-      console.error('Failed to save inspection:', error);
-      throw error;
-    }
-  };
+      if (!backendInspections?.length) return;
 
-  const createInspection = async (
+      const inspectionPromises = backendInspections.map(async (backendInspection) => {
+        try {
+          const detailedInspection = await apiClient.getInspection(backendInspection.id);
+          
+          const inspection: Inspection = {
+            id: backendInspection.id,
+            name: `${new Date(backendInspection.created_at).toLocaleDateString('en-US', { 
+              month: 'short', 
+              day: 'numeric', 
+              year: 'numeric' 
+            })} - ${backendInspection.property_address}`,
+            location: {
+              latitude: 37.7749, // Default location for now
+              longitude: -122.4194,
+              address: backendInspection.property_address,
+            },
+            createdAt: new Date(backendInspection.created_at),
+            status: backendInspection.status === 'completed' ? 'completed' : 'active',
+            items: (detailedInspection.items || []).reduce((acc: Record<string, InspectionItem>, item: any) => {
+              const inspectionItem: InspectionItem = {
+                id: item.id,
+                inspectionId: backendInspection.id,
+                photoUri: item.photo_url || '',
+                audioUri: item.audio_url,
+                timestamp: new Date(item.timestamp),
+                tags: [], // Will be populated when backend is updated
+                description: item.notes,
+                processingStatus: 'completed',
+                retryCount: 0,
+                // Legacy fields for compatibility
+                label: item.label,
+                suggestedLabel: item.suggested_label,
+                audioTranscription: item.audio_transcription,
+                uploadStatus: 'completed',
+                backendId: item.id,
+              };
+              acc[item.id] = inspectionItem;
+              return acc;
+            }, {}),
+          };
+          
+          return inspection;
+        } catch (detailError) {
+          console.error('Failed to load details for inspection:', backendInspection.id, detailError);
+          return {
+            id: backendInspection.id,
+            name: `${new Date(backendInspection.created_at).toLocaleDateString('en-US', { 
+              month: 'short', 
+              day: 'numeric', 
+              year: 'numeric' 
+            })} - ${backendInspection.property_address}`,
+            location: {
+              latitude: 37.7749,
+              longitude: -122.4194,
+              address: backendInspection.property_address,
+            },
+            createdAt: new Date(backendInspection.created_at),
+            status: backendInspection.status === 'completed' ? 'completed' : 'active',
+            items: {},
+          } as Inspection;
+        }
+      });
+
+      const convertedInspections = await Promise.all(inspectionPromises);
+      setInspections(convertedInspections);
+      debouncedSaveToStorage(convertedInspections);
+    } catch (error) {
+      console.error('❌ Failed to load inspections from backend:', error);
+    }
+  }, []);
+
+  const debouncedSaveToStorage = useCallback((inspectionsToSave: Inspection[]) => {
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+    
+    saveTimeoutRef.current = setTimeout(async () => {
+      try {
+        await AsyncStorage.setItem(STORAGE_KEYS.INSPECTIONS_LIST, JSON.stringify(inspectionsToSave));
+      } catch (error) {
+        console.error('Failed to save inspections to storage:', error);
+      }
+    }, 500);
+  }, []);
+
+  const saveInspection = useCallback((inspection: Inspection) => {
+    setInspections(prev => {
+      const updated = prev.filter(i => i.id !== inspection.id);
+      updated.push(inspection);
+      debouncedSaveToStorage(updated);
+      return updated;
+    });
+  }, [debouncedSaveToStorage]);
+
+  const createInspection = useCallback(async (
     name: string, 
     location: { latitude: number; longitude: number; address?: string }
   ): Promise<Inspection> => {
-    const inspection: Inspection = {
-      id: uuidv4(),
-      name,
-      location,
-      createdAt: new Date(),
-      status: 'active',
-      items: [],
-    };
+    try {
+      const backendInspection = await apiClient.createInspection(location.address || 'Property Address');
+      const inspection: Inspection = {
+        id: backendInspection.id,
+        name,
+        location,
+        createdAt: new Date(backendInspection.created_at),
+        status: 'active',
+        items: {},
+      };
+      saveInspection(inspection);
+      return inspection;
+    } catch (error) {
+      console.error('Failed to create inspection on backend:', error);
+      const localInspection: Inspection = {
+        id: Crypto.randomUUID(),
+        name,
+        location,
+        createdAt: new Date(),
+        status: 'active',
+        items: {},
+      };
+      saveInspection(localInspection);
+      return localInspection;
+    }
+  }, [saveInspection]);
 
-    await saveInspection(inspection);
-    return inspection;
-  };
-
-  const setCurrentInspection = async (inspection: Inspection | null) => {
+  const setCurrentInspection = useCallback(async (inspection: Inspection | null) => {
     try {
       if (inspection) {
         await AsyncStorage.setItem(STORAGE_KEYS.CURRENT_INSPECTION, inspection.id);
+        setCurrentInspectionId(inspection.id);
       } else {
         await AsyncStorage.removeItem(STORAGE_KEYS.CURRENT_INSPECTION);
+        setCurrentInspectionId(null);
       }
-      setCurrentInspectionState(inspection);
     } catch (error) {
       console.error('Failed to set current inspection:', error);
       throw error;
     }
-  };
+  }, []);
 
-  const addInspectionItem = async (item: InspectionItem) => {
-    if (!currentInspection) {
+  const addInspectionItem = useCallback((item: InspectionItem) => {
+    if (!currentInspectionId) {
       throw new Error('No current inspection set');
     }
 
-    const updatedInspection: Inspection = {
-      ...currentInspection,
-      items: [...currentInspection.items, item],
-    };
+    setInspections(prev => {
+      const inspection = prev.find(i => i.id === currentInspectionId);
+      if (!inspection) {
+        throw new Error('Current inspection not found');
+      }
 
-    await saveInspection(updatedInspection);
-    setCurrentInspectionState(updatedInspection);
-  };
+      const updated = prev.map(i => {
+        if (i.id === currentInspectionId) {
+          return {
+            ...i,
+            items: {
+              ...i.items,
+              [item.id]: item
+            }
+          };
+        }
+        return i;
+      });
+      
+      debouncedSaveToStorage(updated);
+      return updated;
+    });
+  }, [currentInspectionId, debouncedSaveToStorage]);
 
-  const updateInspectionItem = async (itemId: string, updates: Partial<InspectionItem>) => {
-    if (!currentInspection) {
+  const updateInspectionItem = useCallback((itemId: string, updates: Partial<InspectionItem>) => {
+    if (!currentInspectionId) {
       throw new Error('No current inspection set');
     }
 
-    const updatedItems = currentInspection.items.map(item =>
-      item.id === itemId ? { ...item, ...updates } : item
-    );
+    setInspections(prev => {
+      const inspection = prev.find(i => i.id === currentInspectionId);
+      if (!inspection || !inspection.items[itemId]) {
+        console.error(`Item ${itemId} not found in inspection ${currentInspectionId}`);
+        return prev;
+      }
 
-    const updatedInspection: Inspection = {
-      ...currentInspection,
-      items: updatedItems,
-    };
+      const updated = prev.map(i => {
+        if (i.id === currentInspectionId) {
+          return {
+            ...i,
+            items: {
+              ...i.items,
+              [itemId]: { ...i.items[itemId], ...updates }
+            }
+          };
+        }
+        return i;
+      });
+      
+      debouncedSaveToStorage(updated);
+      return updated;
+    });
+  }, [currentInspectionId, debouncedSaveToStorage]);
 
-    await saveInspection(updatedInspection);
-    setCurrentInspectionState(updatedInspection);
-  };
-
-  const deleteInspectionItem = async (itemId: string) => {
-    if (!currentInspection) {
+  const deleteInspectionItem = useCallback((itemId: string) => {
+    if (!currentInspectionId) {
       throw new Error('No current inspection set');
     }
 
-    const updatedItems = currentInspection.items.filter(item => item.id !== itemId);
-
-    const updatedInspection: Inspection = {
-      ...currentInspection,
-      items: updatedItems,
-    };
-
-    await saveInspection(updatedInspection);
-    setCurrentInspectionState(updatedInspection);
-  };
+    setInspections(prev => {
+      const updated = prev.map(i => {
+        if (i.id === currentInspectionId) {
+          const { [itemId]: _, ...remainingItems } = i.items;
+          return {
+            ...i,
+            items: remainingItems
+          };
+        }
+        return i;
+      });
+      
+      debouncedSaveToStorage(updated);
+      return updated;
+    });
+  }, [currentInspectionId, debouncedSaveToStorage]);
 
   const value: InspectionContextType = {
     currentInspection,

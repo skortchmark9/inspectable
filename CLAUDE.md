@@ -34,7 +34,6 @@ app/src/
 │   ├── useCamera.ts            # Camera functionality (✅ Working)
 │   └── useLocation.ts          # GPS location services (✅ Working)
 ├── utils/
-│   ├── upload.ts               # Upload functions (✅ OpenAI integrated)
 │   ├── openai.ts               # OpenAI Vision & Whisper APIs (✅ Both working)
 │   └── storage.ts              # AsyncStorage persistence (✅ Working)
 ├── types/index.ts              # TypeScript interfaces
@@ -44,7 +43,6 @@ app/src/
 ## 🔧 **Technical Implementation**
 
 ### OpenAI Integration (✅ Working):
-- **Function**: `uploadInspectionDataWithOpenAI()` in `utils/upload.ts`
 - **Vision API**: GPT-4 Vision analyzes photos for equipment identification
 - **API Key**: Configured in `utils/openai.ts`
 - **Error Handling**: Fallback responses on API failures

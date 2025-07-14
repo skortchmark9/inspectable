@@ -16,7 +16,6 @@ class AuthManager {
   }
 
   async signIn(email: string, password: string): Promise<string> {
-    console.log('🔐 Signing in user:', email);
     const response = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
       method: 'POST',
       headers: {
@@ -27,24 +26,16 @@ class AuthManager {
       body: JSON.stringify({ email, password }),
     });
 
-    console.log('🌐 Sign in response status:', response.status);
-
     if (!response.ok) {
       const error = await response.json();
-      console.error('❌ Sign in error:', error);
+      console.error('❌ Sign in failed:', error);
       throw new Error(error.error || 'Sign in failed');
     }
 
     const data = await response.json();
-    console.log('✅ Sign in successful, saving token...');
-    
     this.accessToken = data.access_token;
     await AsyncStorage.setItem('access_token', data.access_token);
     await AsyncStorage.setItem('user_email', email);
-    
-    console.log('💾 Token saved to AsyncStorage');
-    console.log('🔑 Token preview:', data.access_token.substring(0, 20) + '...');
-    
     return data.access_token;
   }
 
@@ -78,13 +69,8 @@ class AuthManager {
   }
 
   async getToken(): Promise<string | null> {
-    console.log('🔑 Getting token...');
     if (!this.accessToken) {
-      console.log('🔍 No token in memory, checking AsyncStorage...');
       this.accessToken = await AsyncStorage.getItem('access_token');
-      console.log('📦 Token from storage:', this.accessToken ? 'Found' : 'Not found');
-    } else {
-      console.log('💾 Using token from memory');
     }
     return this.accessToken;
   }
@@ -98,10 +84,8 @@ class AuthManager {
   }
 
   async validateToken(): Promise<boolean> {
-    console.log('🔍 Validating token...');
     const token = await this.getToken();
     if (!token) {
-      console.log('❌ No token to validate');
       return false;
     }
 
@@ -113,19 +97,14 @@ class AuthManager {
           'apikey': SUPABASE_ANON_KEY,
         },
       });
-
-      console.log('🔍 Validation response:', response.status);
       
       if (response.ok) {
-        const user = await response.json();
-        console.log('✅ Token valid for user:', user.email);
         return true;
       } else {
-        console.log('❌ Token invalid:', response.status);
         return false;
       }
     } catch (error) {
-      console.error('❌ Token validation error:', error);
+      console.error('Token validation error:', error);
       return false;
     }
   }
@@ -157,7 +136,6 @@ class InspectionAPIClient {
   }
 
   async createInspection(propertyAddress: string): Promise<any> {
-    console.log('🏠 Creating inspection via:', `${BASE_URL}/inspections`);
     const headers = await this.getAuthHeaders();
     const response = await fetch(`${BASE_URL}/inspections`, {
       method: 'POST',
@@ -171,7 +149,6 @@ class InspectionAPIClient {
       }),
     });
 
-    console.log('🏠 Inspection creation response:', response.status);
     const data = await response.json();
     if (!data.success) {
       throw new Error(data.error || 'Failed to create inspection');
@@ -187,14 +164,11 @@ class InspectionAPIClient {
     location?: { latitude: number; longitude: number },
     notes?: string
   ): Promise<any> {
-    console.log('📤 Starting upload to backend:', { inspectionId, photoUri, audioUri: !!audioUri });
-    
     try {
       const headers = await this.getAuthHeaders();
       const formData = new FormData();
 
       // Add photo
-      console.log('📷 Adding photo to form data');
       formData.append('photo', {
         uri: photoUri,
         type: 'image/jpeg',
@@ -203,7 +177,6 @@ class InspectionAPIClient {
 
       // Add audio if provided
       if (audioUri) {
-        console.log('🎵 Adding audio to form data');
         formData.append('audio', {
           uri: audioUri,
           type: 'audio/m4a',
@@ -221,39 +194,25 @@ class InspectionAPIClient {
       }
 
       const url = `${BASE_URL}/inspection-items/inspections/${inspectionId}/items`;
-      console.log('🌐 Making request to:', url);
-      console.log('🔍 Expected pathname in function: /inspections/' + inspectionId + '/items');
-      console.log('🔍 Full URL breakdown:', {
-        baseUrl: BASE_URL,
-        functionName: 'inspection-items',
-        expectedPath: `/inspections/${inspectionId}/items`,
-        fullUrl: url
-      });
-
       const response = await fetch(url, {
         method: 'POST',
         headers: headers,
         body: formData,
       });
 
-      console.log('📊 Response status:', response.status);
-      console.log('📊 Response headers:', response.headers);
-
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('❌ Backend error response:', errorText);
+        console.error('❌ Upload failed:', response.status, errorText);
         throw new Error(`Backend error ${response.status}: ${errorText}`);
       }
 
       const data = await response.json();
-      console.log('✅ Backend response:', data);
-      
       if (!data.success) {
         throw new Error(data.error || 'Failed to upload inspection item');
       }
       return data.data;
     } catch (error) {
-      console.error('💥 Upload error details:', error);
+      console.error('❌ Upload error:', error);
       throw error;
     }
   }
@@ -287,8 +246,6 @@ class InspectionAPIClient {
   }
 
   async analyzePhoto(photoUri: string): Promise<string> {
-    console.log('📷 Testing photo analysis endpoint...');
-    
     const formData = new FormData();
     formData.append('photo', {
       uri: photoUri,
@@ -297,18 +254,14 @@ class InspectionAPIClient {
     } as any);
 
     const url = `${BASE_URL}/ai-analysis/analyze-photo`;
-    console.log('🌐 Photo analysis URL:', url);
-    
     const response = await fetch(url, {
       method: 'POST',
       body: formData,
     });
-
-    console.log('📊 Photo analysis response:', response.status);
     
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('❌ Photo analysis error:', errorText);
+      console.error('❌ Photo analysis failed:', response.status, errorText);
       throw new Error(`Photo analysis failed: ${response.status}`);
     }
 

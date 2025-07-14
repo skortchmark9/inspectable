@@ -12,8 +12,6 @@ import {
   Platform,
   SafeAreaView,
 } from 'react-native';
-import { useAudioPlayer } from 'expo-audio';
-import * as FileSystem from 'expo-file-system';
 import { InspectionItem } from '../types';
 import { MAX_LABEL_LENGTH } from '../constants/Config';
 
@@ -27,83 +25,18 @@ export function LabelEditor({ item, onSave, onCancel }: LabelEditorProps) {
   const [label, setLabel] = useState(item.suggestedLabel || '');
   const isLoading = item.uploadStatus === 'uploading';
   
-  // Use expo-audio player
-  const player = useAudioPlayer(item.audioUri ? { uri: item.audioUri } : null);
-  
-  console.log('LabelEditor: Audio player created with URI:', item.audioUri);
-  console.log('LabelEditor: Player initial state:', {
-    playing: player.playing,
-    duration: player.duration
+  console.log('LabelEditor: Initializing with item:', {
+    id: item.id,
+    hasPhoto: !!item.photoUri,
+    hasAudio: !!item.audioUri,
+    suggestedLabel: item.suggestedLabel
   });
 
   useEffect(() => {
     if (item.suggestedLabel) {
       setLabel(item.suggestedLabel);
     }
-    
-    // Check audio file info
-    if (item.audioUri) {
-      checkAudioFile();
-    }
-  }, [item.suggestedLabel, item.audioUri]);
-
-  const checkAudioFile = async () => {
-    try {
-      const fileInfo = await FileSystem.getInfoAsync(item.audioUri);
-      console.log('Audio file info:', {
-        exists: fileInfo.exists,
-        size: fileInfo.size,
-        uri: fileInfo.uri,
-        modificationTime: fileInfo.modificationTime
-      });
-      
-      if (fileInfo.size === 0) {
-        console.log('⚠️ Audio file is empty (0 bytes)!');
-      } else {
-        console.log(`✅ Audio file size: ${fileInfo.size} bytes`);
-      }
-    } catch (error) {
-      console.error('Error checking audio file:', error);
-    }
-  };
-
-  const playAudio = () => {
-    try {
-      if (!item.audioUri) {
-        console.log('No audio URI available');
-        return;
-      }
-
-      console.log('Playing audio from:', item.audioUri);
-      console.log('Player state before play:', {
-        playing: player.playing,
-        duration: player.duration,
-        currentTime: player.currentTime
-      });
-      
-      player.play();
-      
-      // Check state after play
-      setTimeout(() => {
-        console.log('Player state after play:', {
-          playing: player.playing,
-          duration: player.duration,
-          currentTime: player.currentTime
-        });
-      }, 100);
-      
-    } catch (error) {
-      console.error('Audio playback error:', error);
-    }
-  };
-
-  const stopAudio = () => {
-    try {
-      player.pause();
-    } catch (error) {
-      console.error('Error stopping audio:', error);
-    }
-  };
+  }, [item.suggestedLabel]);
 
   const handleSave = () => {
     if (label.trim()) {
@@ -150,16 +83,8 @@ export function LabelEditor({ item, onSave, onCancel }: LabelEditorProps) {
               )}
 
               {item.audioUri && (
-                <View style={styles.audioContainer}>
-                  <Text style={styles.audioTitle}>Recorded Audio</Text>
-                  <TouchableOpacity 
-                    style={styles.audioButton} 
-                    onPress={player.playing ? stopAudio : playAudio}
-                  >
-                    <Text style={styles.audioButtonText}>
-                      {player.playing ? '⏹ Stop' : '▶️ Play Recording'}
-                    </Text>
-                  </TouchableOpacity>
+                <View style={styles.audioInfoContainer}>
+                  <Text style={styles.audioInfoText}>📎 Audio recorded</Text>
                 </View>
               )}
 
@@ -251,29 +176,17 @@ const styles = StyleSheet.create({
     color: '#333',
     lineHeight: 20,
   },
-  audioContainer: {
-    backgroundColor: '#e8f4fd',
-    padding: 16,
+  audioInfoContainer: {
+    backgroundColor: '#f0f8ff',
+    padding: 12,
     borderRadius: 8,
     marginBottom: 20,
-  },
-  audioTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#666',
-    marginBottom: 8,
-  },
-  audioButton: {
-    backgroundColor: '#007AFF',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 6,
     alignItems: 'center',
   },
-  audioButtonText: {
-    color: '#fff',
+  audioInfoText: {
     fontSize: 14,
-    fontWeight: '600',
+    color: '#666',
+    fontWeight: '500',
   },
   buttonContainer: {
     flexDirection: 'row',
