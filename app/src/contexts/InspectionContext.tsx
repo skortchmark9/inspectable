@@ -146,8 +146,37 @@ export function InspectionProvider({ children }: InspectionProviderProps) {
       });
 
       const convertedInspections = await Promise.all(inspectionPromises);
-      setInspections(convertedInspections);
-      debouncedSaveToStorage(convertedInspections);
+      
+      // Merge with existing local data to preserve pending items
+      setInspections(prev => {
+        const merged = [...convertedInspections];
+        
+        // For each local inspection, check if we need to preserve local-only items
+        prev.forEach(localInspection => {
+          const backendMatch = merged.find(bi => bi.id === localInspection.id);
+          
+          if (backendMatch) {
+            // Merge items: preserve local items that haven't been uploaded
+            const localItems = Object.values(localInspection.items || {});
+            const pendingItems = localItems.filter(item => 
+              !item.backendId && (item.processingStatus === 'pending' || item.processingStatus === 'processing')
+            );
+            
+            // Add pending local items to the backend inspection
+            pendingItems.forEach(item => {
+              console.log(`🔄 Preserving local pending item ${item.id} in inspection ${localInspection.id}`);
+              backendMatch.items[item.id] = item;
+            });
+          } else {
+            // Local inspection doesn't exist on backend - keep it
+            console.log(`🔄 Preserving local-only inspection ${localInspection.id}`);
+            merged.push(localInspection);
+          }
+        });
+        
+        debouncedSaveToStorage(merged);
+        return merged;
+      });
     } catch (error) {
       console.error('❌ Failed to load inspections from backend:', error);
     }

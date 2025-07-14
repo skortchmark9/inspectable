@@ -36,6 +36,7 @@ export function CameraScreen({
   return (
     <View style={styles.container}>
       <CameraView
+        active={isReady}
         ref={cameraRef}
         style={styles.camera}
         facing="back"

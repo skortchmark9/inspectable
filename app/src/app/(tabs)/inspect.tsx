@@ -6,6 +6,7 @@ import {
   SafeAreaView,
   Text,
 } from 'react-native';
+import { useIsFocused } from '@react-navigation/native';
 import * as Crypto from 'expo-crypto';
 
 import { CameraScreen } from '@/components/CameraScreen';
@@ -17,6 +18,7 @@ import { InspectionItem } from '@/types';
 
 export default function InspectScreen() {
   const [isCapturing, setIsCapturing] = useState(false);
+  const isFocused = useIsFocused();
 
   const { currentInspection, addInspectionItem } = useInspection();
   const audioRecorder = useAudioRecorderCustom();
@@ -39,12 +41,20 @@ export default function InspectScreen() {
 
   // Start recording when on camera tab and permissions granted
   useEffect(() => {
-    console.log('Audio Effect: hasPermission:', audioRecorder.hasPermission, 'isRecording:', audioRecorder.isRecording);
-    if (audioRecorder.hasPermission && !audioRecorder.isRecording) {
+    console.log('Audio Effect: hasPermission:', audioRecorder.hasPermission, 'isRecording:', audioRecorder.isRecording, 'isFocused:', isFocused);
+    if (isFocused && audioRecorder.hasPermission && !audioRecorder.isRecording) {
       console.log('Audio Effect: Starting recording...');
       audioRecorder.startRecording();
     }
-  }, [audioRecorder.hasPermission, audioRecorder.isRecording]);
+  }, [audioRecorder.hasPermission, audioRecorder.isRecording, isFocused]);
+
+  // Stop recording when tab loses focus
+  useEffect(() => {
+    if (!isFocused && audioRecorder.isRecording) {
+      console.log('Audio Effect: Tab unfocused, stopping recording...');
+      audioRecorder.stopRecording();
+    }
+  }, [isFocused, audioRecorder.isRecording]);
 
   const handleCapture = useCallback(async () => {
     if (isCapturing || !camera.hasPermission) return;
@@ -131,7 +141,7 @@ export default function InspectScreen() {
     <SafeAreaView style={styles.container}>
       <CameraScreen
         cameraRef={camera.cameraRef}
-        isReady={camera.isReady}
+        isReady={camera.isReady && isFocused}
         setIsReady={camera.setIsReady}
         isRecording={audioRecorder.isRecording}
         onCapture={handleCapture}
