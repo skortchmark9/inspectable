@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { BackendInspectionListResponse, BackendInspectionDetailsResponse } from '@/types';
 
 const SUPABASE_URL = 'https://yqevuyyiorrdsopufeyt.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlxZXZ1eXlpb3JyZHNvcHVmZXl0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE4MzE1ODUsImV4cCI6MjA2NzQwNzU4NX0.Kjr18soW5R5yMscDZcIRZdE1moPFE89S2fBhujJ2xOY';
@@ -217,7 +218,7 @@ class InspectionAPIClient {
     }
   }
 
-  async getInspections(): Promise<any[]> {
+  async getInspections(): Promise<BackendInspectionListResponse[]> {
     const headers = await this.getAuthHeaders();
     const response = await fetch(`${BASE_URL}/inspections`, {
       method: 'GET',
@@ -231,7 +232,7 @@ class InspectionAPIClient {
     return data.data;
   }
 
-  async getInspection(id: string): Promise<any> {
+  async getInspection(id: string): Promise<BackendInspectionDetailsResponse> {
     const headers = await this.getAuthHeaders();
     const response = await fetch(`${BASE_URL}/inspections/${id}`, {
       method: 'GET',
@@ -243,6 +244,27 @@ class InspectionAPIClient {
       throw new Error(data.error || 'Failed to get inspection');
     }
     return data.data;
+  }
+
+  async deleteInspection(id: string): Promise<void> {
+    const headers = await this.getAuthHeaders();
+    const response = await fetch(`${BASE_URL}/inspections/${id}`, {
+      method: 'DELETE',
+      headers: headers,
+    });
+    console.log('deleting mf', id);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ Delete inspection failed:', response.status, errorText);
+      throw new Error(`Failed to delete inspection: ${response.status}`);
+    }
+    console.log('deleted mf');
+
+    const data = await response.json();
+    if (!data.success) {
+      throw new Error(data.error || 'Failed to delete inspection');
+    }
   }
 
   async analyzePhoto(photoUri: string): Promise<string> {

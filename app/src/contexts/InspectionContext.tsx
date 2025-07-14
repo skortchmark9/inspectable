@@ -100,7 +100,7 @@ export function InspectionProvider({ children }: InspectionProviderProps) {
             },
             createdAt: new Date(backendInspection.created_at),
             status: backendInspection.status === 'completed' ? 'completed' : 'active',
-            items: (detailedInspection.items || []).reduce((acc: Record<string, InspectionItem>, item: any) => {
+            items: (detailedInspection.inspection_items || []).reduce((acc: Record<string, InspectionItem>, item: any) => {
               const inspectionItem: InspectionItem = {
                 id: item.id,
                 inspectionId: backendInspection.id,
@@ -303,6 +303,28 @@ export function InspectionProvider({ children }: InspectionProviderProps) {
     });
   }, [currentInspectionId, debouncedSaveToStorage]);
 
+  const deleteInspection = useCallback(async (inspectionId: string) => {
+    try {
+      // Try to delete from backend first
+      await apiClient.deleteInspection(inspectionId);
+    } catch (error) {
+      console.error('Failed to delete inspection from backend:', error);
+      // Continue with local deletion even if backend fails
+    }
+
+    // Remove from local state
+    setInspections(prev => {
+      const updated = prev.filter(i => i.id !== inspectionId);
+      debouncedSaveToStorage(updated);
+      return updated;
+    });
+
+    // Clear current inspection if it's the one being deleted
+    if (currentInspectionId === inspectionId) {
+      await setCurrentInspection(null);
+    }
+  }, [currentInspectionId, setCurrentInspection, debouncedSaveToStorage]);
+
   const value: InspectionContextType = {
     currentInspection,
     inspections,
@@ -311,6 +333,7 @@ export function InspectionProvider({ children }: InspectionProviderProps) {
     addInspectionItem,
     updateInspectionItem,
     deleteInspectionItem,
+    deleteInspection,
   };
 
   return (

@@ -15,7 +15,7 @@ import { useLocation } from '@/hooks/useLocation';
 import { Inspection } from '@/types';
 
 export default function HomeScreen() {
-  const { currentInspection, inspections, createInspection, setCurrentInspection } = useInspection();
+  const { currentInspection, inspections, createInspection, setCurrentInspection, deleteInspection } = useInspection();
   const location = useLocation();
   const [isCreating, setIsCreating] = useState(false);
 
@@ -83,6 +83,32 @@ export default function HomeScreen() {
     }
   };
 
+  const handleDeleteInspection = (inspection: Inspection) => {
+    Alert.alert(
+      'Delete Inspection',
+      `Are you sure you want to delete "${inspection.name}"? This action cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteInspection(inspection.id);
+            } catch (error: any) {
+              console.error('❌ Failed to delete inspection:', error);
+              Alert.alert(
+                'Error',
+                `Failed to delete inspection: ${error.message}`,
+                [{ text: 'OK' }]
+              );
+            }
+          }
+        }
+      ]
+    );
+  };
+
   const formatDate = (date: Date) => {
     try {
       return date.toLocaleDateString() + ' at ' + date.toLocaleTimeString([], { 
@@ -112,20 +138,32 @@ export default function HomeScreen() {
         </View>
         <Text style={styles.cardName}>{item.name}</Text>
         <Text style={styles.cardDate}>{formatDate(item.createdAt)}</Text>
-        <Text style={styles.cardItems}>{item.items.length} items captured</Text>
+        <Text style={styles.cardItems}>
+          {Object.keys(item.items || {}).length} items captured
+        </Text>
         
-        <TouchableOpacity
-          style={[
-            styles.button, 
-            isCurrentInspection ? styles.continueButton : styles.resumeButton
-          ]}
-          onPress={() => handleResumeInspection(item)}
-        >
-          <Text style={styles.buttonText}>
-            {isCurrentInspection ? 'Continue' : 
-             item.status === 'active' ? 'Resume' : 'View'}
-          </Text>
-        </TouchableOpacity>
+        <View style={styles.buttonRow}>
+          <TouchableOpacity
+            style={[
+              styles.button, 
+              styles.primaryButton,
+              isCurrentInspection ? styles.continueButton : styles.resumeButton
+            ]}
+            onPress={() => handleResumeInspection(item)}
+          >
+            <Text style={styles.buttonText}>
+              {isCurrentInspection ? 'Continue' : 
+               item.status === 'active' ? 'Resume' : 'View'}
+            </Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={[styles.button, styles.deleteButton]}
+            onPress={() => handleDeleteInspection(item)}
+          >
+            <Text style={styles.deleteButtonText}>Delete</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     );
   };
@@ -246,17 +284,28 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginBottom: 16,
   },
+  buttonRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
   button: {
     height: 50,
     borderRadius: 8,
     justifyContent: 'center',
     alignItems: 'center',
   },
+  primaryButton: {
+    flex: 1,
+  },
   resumeButton: {
     backgroundColor: '#007AFF',
   },
   continueButton: {
     backgroundColor: '#34C759',
+  },
+  deleteButton: {
+    backgroundColor: '#FF3B30',
+    paddingHorizontal: 20,
   },
   newButton: {
     backgroundColor: '#34C759',
@@ -265,6 +314,11 @@ const styles = StyleSheet.create({
   buttonText: {
     color: '#fff',
     fontSize: 18,
+    fontWeight: '600',
+  },
+  deleteButtonText: {
+    color: '#fff',
+    fontSize: 16,
     fontWeight: '600',
   },
   emptyState: {

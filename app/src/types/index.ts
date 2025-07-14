@@ -77,6 +77,7 @@ export interface InspectionContextType {
   addInspectionItem: (item: InspectionItem) => Promise<void>;
   updateInspectionItem: (itemId: string, updates: Partial<InspectionItem>) => Promise<void>;
   deleteInspectionItem: (itemId: string) => Promise<void>;
+  deleteInspection: (inspectionId: string) => Promise<void>;
 }
 
 export interface QueueContextType {
@@ -140,4 +141,25 @@ export interface BackendInspection {
   updated_at: string;
   status: 'in_progress' | 'completed';
   metadata?: any;
+}
+
+export interface BackendInspectionListResponse {
+  id: string;
+  user_id: string;
+  property_address: string;
+  created_at: string;
+  updated_at: string;
+  status: 'in_progress' | 'completed';
+  metadata?: any;
+}
+
+export interface BackendInspectionDetailsResponse {
+  id: string;
+  user_id: string;
+  property_address: string;
+  created_at: string;
+  updated_at: string;
+  status: 'in_progress' | 'completed';
+  metadata?: any;
+  inspection_items: BackendInspectionItem[];
 }
