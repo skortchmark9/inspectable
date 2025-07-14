@@ -7,17 +7,33 @@ export const PRE_INSPECTION_CHECKLIST: ChecklistDefinition = {
     {
       id: 'hvac',
       name: 'HVAC',
-      keywords: ['furnace', 'thermostat', 'ductwork', 'air handler', 'condenser', 'wiring', 'gas meter', 'electric meter']
+      keywords: ['furnace', 'thermostat', 'ductwork', 'air handler', 'condenser', 'wiring', 'gas meter', 'electric meter'],
+      specificItems: [
+        { id: 'central_air_label', name: 'Central Air Unit Label', keywords: ['furnace', 'label'], required: true },
+        { id: 'unit_exterior_wall', name: 'Unit Against Exterior Wall', keywords: ['furnace', 'exterior'], required: true },
+        { id: 'ductwork_photos', name: 'Ductwork Photos', keywords: ['ductwork'], required: true },
+        { id: 'thermostat_photo', name: 'Thermostat Photo', keywords: ['thermostat'], required: false }
+      ]
     },
     {
       id: 'heat_pump_hot_water',
       name: 'Heat Pump Domestic Hot Water',
-      keywords: ['water heater', 'heat pump', 'hot water', 'plumbing']
+      keywords: ['water heater', 'heat pump', 'hot water', 'plumbing'],
+      specificItems: [
+        { id: 'water_heater_full', name: 'Photo of Whole Water Heater', keywords: ['water heater'], required: true },
+        { id: 'water_heater_label', name: 'Photo of Water Heater Label', keywords: ['water heater', 'label'], required: true }
+      ]
     },
     {
       id: 'fuel_switching',
       name: 'Fuel Switching',
-      keywords: ['dryer', 'stove', 'oven', 'kitchen', 'gas meter', 'electric meter', 'range hood', 'fridge', 'dishwasher']
+      keywords: ['dryer', 'stove', 'oven', 'kitchen', 'gas meter', 'electric meter', 'range hood', 'fridge', 'dishwasher'],
+      specificItems: [
+        { id: 'kitchen_photo', name: 'Photo of Kitchen', keywords: ['kitchen'], required: true },
+        { id: 'dryer_photo', name: 'Photo of Dryer', keywords: ['dryer'], required: true },
+        { id: 'oven_photo', name: 'Photo of Oven', keywords: ['oven'], required: false },
+        { id: 'breaker_panel', name: 'Breaker Panel', keywords: ['breaker', 'electrical panel'], required: true }
+      ]
     },
     {
       id: 'electrical_make_ready',

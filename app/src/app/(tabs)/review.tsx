@@ -4,7 +4,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, { useSharedValue, withSpring } from 'react-native-reanimated';
 import { useInspection } from '@/contexts/InspectionContext';
 import { InspectionItem } from '@/types';
-import { AssignedCategory, ChecklistCategory } from '@/types/checklist';
+import { AssignedCategory, ChecklistCategory, SpecificItem } from '@/types/checklist';
 import { PRE_INSPECTION_CHECKLIST } from '@/constants/checklists';
 import { categorizeItemsWithChecklist } from '@/utils/categorization';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -136,9 +136,32 @@ export default function ReviewScreen() {
     );
   };
 
+  const renderSpecificItem = (item: SpecificItem, isFulfilled: boolean, colors: any) => {
+    return (
+      <View key={item.id} style={styles.specificItemRow}>
+        <Text style={[
+          styles.specificItemIcon, 
+          { color: isFulfilled ? '#28a745' : (item.required ? '#dc3545' : colors.secondaryText) }
+        ]}>
+          {isFulfilled ? '✓' : (item.required ? '!' : '○')}
+        </Text>
+        <Text style={[
+          styles.specificItemText, 
+          { 
+            color: isFulfilled ? colors.text : colors.secondaryText,
+            textDecorationLine: isFulfilled ? 'line-through' : 'none'
+          }
+        ]}>
+          {item.name}
+        </Text>
+      </View>
+    );
+  };
+
   const renderCategory = (assignedCategory: AssignedCategory, colors: any) => {
-    const { definition, assignedItems } = assignedCategory;
+    const { definition, assignedItems, completion } = assignedCategory;
     const isEmpty = assignedItems.length === 0;
+    const hasSpecificItems = definition.specificItems && definition.specificItems.length > 0;
 
     return (
       <View 
@@ -163,14 +186,29 @@ export default function ReviewScreen() {
           </View>
         )}
         
-        {isEmpty ? (
+        {/* Show specific items breakdown */}
+        {hasSpecificItems && completion && (
+          <View style={styles.specificItemsContainer}>
+            {completion.missing.filter(item => item.required).map(item => 
+              renderSpecificItem(item, false, colors)
+            )}
+            {completion.fulfilled.map(item => 
+              renderSpecificItem(item, true, colors)
+            )}
+            {completion.missing.filter(item => !item.required).map(item => 
+              renderSpecificItem(item, false, colors)
+            )}
+          </View>
+        )}
+        
+        {isEmpty && !hasSpecificItems ? (
           <View style={styles.emptyCategory}>
             <Text style={[styles.emptyCategoryText, { color: colors.secondaryText }]}>
               No photos yet. Looking for: {definition.keywords.slice(0, 3).join(', ')}
               {definition.keywords.length > 3 ? '...' : ''}
             </Text>
           </View>
-        ) : (
+        ) : assignedItems.length > 0 ? (
           <FlatList
             data={assignedItems}
             renderItem={({ item, index }) => renderCategoryItem(item, index, assignedCategory)}
@@ -179,7 +217,7 @@ export default function ReviewScreen() {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.categoryItems}
           />
-        )}
+        ) : null}
       </View>
     );
   };
@@ -386,5 +424,24 @@ const styles = StyleSheet.create({
   keywordsList: {
     fontSize: 12,
     lineHeight: 16,
+  },
+  specificItemsContainer: {
+    marginBottom: 12,
+    paddingHorizontal: 4,
+  },
+  specificItemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  specificItemIcon: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    marginRight: 8,
+    width: 16,
+  },
+  specificItemText: {
+    fontSize: 14,
+    flex: 1,
   },
 });
