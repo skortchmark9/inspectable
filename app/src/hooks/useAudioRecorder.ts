@@ -5,6 +5,8 @@ import * as Crypto from 'expo-crypto';
 import { Alert } from 'react-native';
 import { AUDIO_SEGMENT_DURATION, MAX_AUDIO_SEGMENTS } from '../constants/Config';
 
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 export function useAudioRecorderCustom() {
   const [hasPermission, setHasPermission] = useState(false);
   const [isStartingRecording, setIsStartingRecording] = useState(false);
@@ -48,6 +50,9 @@ export function useAudioRecorderCustom() {
       setIsStartingRecording(true);
       await audioRecorder.prepareToRecordAsync();
       audioRecorder.record();
+      while (!audioRecorder.isRecording) {
+        await wait(5);
+      }
       setIsStartingRecording(false);
       console.log('Audio: Recording started successfully');
       console.log('Audio: Recorder ID after start:', audioRecorder.id);

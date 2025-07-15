@@ -46,7 +46,7 @@ export default function InspectScreen() {
       console.log('Audio Effect: Starting recording...');
       audioRecorder.startRecording();
     }
-  }, [audioRecorder.hasPermission, audioRecorder.isRecording, isFocused]);
+  }, [audioRecorder.hasPermission, isFocused, audioRecorder.isRecording]);
 
   // Stop recording when tab loses focus
   useEffect(() => {

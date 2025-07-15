@@ -306,6 +306,7 @@ function getReportCSS(): string {
       margin-bottom: 30px;
       border-bottom: 2px solid #007AFF;
       padding-bottom: 20px;
+      page-break-after: always;
     }
     
     .report-header h1 {
