@@ -16,6 +16,7 @@ export interface SpecificItem {
   name: string;
   keywords: string[];
   required: boolean;
+  requireDatasheet?: boolean; // Must have both appliance tag AND datasheet tag
 }
 
 export interface AssignedCategory {

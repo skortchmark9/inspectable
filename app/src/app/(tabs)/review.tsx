@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, SafeAreaView, Dimensions, ScrollView, FlatList, useColorScheme } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, SafeAreaView, Dimensions, ScrollView, FlatList, useColorScheme, Modal } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, { useSharedValue, withSpring } from 'react-native-reanimated';
 import { useInspection } from '@/contexts/InspectionContext';
@@ -25,6 +25,7 @@ export default function ReviewScreen() {
   const [editingTags, setEditingTags] = useState(false);
   const [showCustomInput, setShowCustomInput] = useState(false);
   const [showInfoFor, setShowInfoFor] = useState<string | null>(null);
+  const [fullscreenImage, setFullscreenImage] = useState<InspectionItem | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
   
   const insets = useSafeAreaInsets();
@@ -54,18 +55,9 @@ export default function ReviewScreen() {
     );
   }
 
-  const items = Object.values(currentInspection.items || {});
-  const allCategories = categorizeItemsWithChecklist(items, PRE_INSPECTION_CHECKLIST);
-  
-  // Sort categories: ones with photos first, empty ones at bottom
-  const categories = allCategories.sort((a, b) => {
-    const aHasItems = a.assignedItems.length > 0;
-    const bHasItems = b.assignedItems.length > 0;
-    
-    if (aHasItems && !bHasItems) return -1;
-    if (!aHasItems && bHasItems) return 1;
-    return 0;
-  });
+  const items = Object.values(currentInspection.items || {})
+    .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+  const categories = categorizeItemsWithChecklist(items, PRE_INSPECTION_CHECKLIST);
 
   const handlePhotoPress = (photo: InspectionItem, categoryId?: string) => {
     const wasDrawerClosed = !selectedPhoto;
@@ -107,6 +99,7 @@ export default function ReviewScreen() {
           selectedPhoto?.id === item.id && styles.selectedItem
         ]}
         onPress={() => handlePhotoPress(item, assignedCategory.definition.id)}
+        onLongPress={() => setFullscreenImage(item)}
       >
         <Image 
           source={{ uri: item.photoUri }} 
@@ -145,15 +138,22 @@ export default function ReviewScreen() {
         ]}>
           {isFulfilled ? '✓' : (item.required ? '!' : '○')}
         </Text>
-        <Text style={[
-          styles.specificItemText, 
-          { 
-            color: isFulfilled ? colors.text : colors.secondaryText,
-            textDecorationLine: isFulfilled ? 'line-through' : 'none'
-          }
-        ]}>
-          {item.name}
-        </Text>
+        <View style={styles.specificItemContent}>
+          <Text style={[
+            styles.specificItemText, 
+            { 
+              color: isFulfilled ? colors.text : colors.secondaryText,
+              textDecorationLine: isFulfilled ? 'line-through' : 'none'
+            }
+          ]}>
+            {item.name}
+          </Text>
+          {item.requireDatasheet && (
+            <Text style={[styles.datasheetIcon, { color: colors.secondaryText }]}>
+              📋
+            </Text>
+          )}
+        </View>
       </View>
     );
   };
@@ -261,6 +261,51 @@ export default function ReviewScreen() {
             />
           )}
         </View>
+
+        {/* Fullscreen Image Modal */}
+        <Modal
+          visible={fullscreenImage !== null}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setFullscreenImage(null)}
+        >
+          <View style={styles.fullscreenContainer}>
+            <TouchableOpacity 
+              style={styles.fullscreenBackdrop}
+              onPress={() => setFullscreenImage(null)}
+            >
+              <SafeAreaView style={styles.fullscreenContent}>
+                <TouchableOpacity
+                  style={styles.closeButton}
+                  onPress={() => setFullscreenImage(null)}
+                >
+                  <Text style={styles.closeButtonText}>✕</Text>
+                </TouchableOpacity>
+                
+                {fullscreenImage && (
+                  <Image
+                    source={{ uri: fullscreenImage.photoUri }}
+                    style={styles.fullscreenImage}
+                    resizeMode="contain"
+                  />
+                )}
+                
+                {fullscreenImage && (
+                  <View style={styles.fullscreenInfo}>
+                    <Text style={styles.fullscreenLabel}>
+                      {fullscreenImage.label || 'Unlabeled Photo'}
+                    </Text>
+                    {(fullscreenImage.tags || []).length > 0 && (
+                      <Text style={styles.fullscreenTags}>
+                        Tags: {(fullscreenImage.tags || []).join(', ')}
+                      </Text>
+                    )}
+                  </View>
+                )}
+              </SafeAreaView>
+            </TouchableOpacity>
+          </View>
+        </Modal>
       </SafeAreaView>
     </GestureHandlerRootView>
   );
@@ -440,8 +485,71 @@ const styles = StyleSheet.create({
     marginRight: 8,
     width: 16,
   },
+  specificItemContent: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   specificItemText: {
     fontSize: 14,
     flex: 1,
+  },
+  datasheetIcon: {
+    fontSize: 14,
+    marginLeft: 8,
+  },
+  fullscreenContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.95)',
+  },
+  fullscreenBackdrop: {
+    flex: 1,
+  },
+  fullscreenContent: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  closeButton: {
+    position: 'absolute',
+    top: 60,
+    right: 20,
+    zIndex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    borderRadius: 20,
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  closeButtonText: {
+    color: 'white',
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  fullscreenImage: {
+    width: '100%',
+    height: '80%',
+  },
+  fullscreenInfo: {
+    position: 'absolute',
+    bottom: 80,
+    left: 20,
+    right: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    borderRadius: 8,
+    padding: 12,
+  },
+  fullscreenLabel: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  fullscreenTags: {
+    color: '#ccc',
+    fontSize: 14,
   },
 });
