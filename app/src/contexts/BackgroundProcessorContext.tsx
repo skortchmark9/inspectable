@@ -102,7 +102,8 @@ export function BackgroundProcessorProvider({ children }: BackgroundProcessorPro
             item.audioUri || null,
             item.label || 'Inspection Item',
             item.location,
-            ''
+            '',
+            item.exifData
           );
 
           updateInspectionItem(item.id, {

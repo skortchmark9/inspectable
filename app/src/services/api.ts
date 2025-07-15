@@ -163,7 +163,8 @@ class InspectionAPIClient {
     audioUri: string | null,
     label: string,
     location?: { latitude: number; longitude: number },
-    notes?: string
+    notes?: string,
+    exifData?: any
   ): Promise<any> {
     try {
       const headers = await this.getAuthHeaders();
@@ -192,6 +193,9 @@ class InspectionAPIClient {
       }
       if (notes) {
         formData.append('notes', notes);
+      }
+      if (exifData) {
+        formData.append('exif_data', JSON.stringify(exifData));
       }
 
       const url = `${BASE_URL}/inspection-items/inspections/${inspectionId}/items`;

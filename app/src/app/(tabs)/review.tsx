@@ -28,6 +28,7 @@ export default function ReviewScreen() {
   const [showInfoFor, setShowInfoFor] = useState<string | null>(null);
   const [fullscreenImage, setFullscreenImage] = useState<InspectionItem | null>(null);
   const [generatingPDF, setGeneratingPDF] = useState(false);
+  const [pdfProgress, setPdfProgress] = useState('');
   const scrollViewRef = useRef<ScrollView>(null);
   
   const insets = useSafeAreaInsets();
@@ -96,19 +97,41 @@ export default function ReviewScreen() {
     if (!currentInspection) return;
     
     setGeneratingPDF(true);
+    setPdfProgress('Starting...');
     
     try {
-      const pdfPath = await generateInspectionPDF(currentInspection, categories);
+      const totalPhotos = categories.reduce((sum, cat) => sum + cat.assignedItems.length, 0);
+      console.log(`Starting PDF generation with ${totalPhotos} photos`);
       
-      // Share the generated PDF
-      await Share.share({
-        url: `file://${pdfPath}`,
-        title: `Inspection Report - ${currentInspection.name}`,
-      });
+      const pdfPath = await generateInspectionPDF(
+        currentInspection, 
+        categories,
+        (message, current, total) => {
+          setPdfProgress(message);
+        }
+      );
+      console.log('PDF generated at:', pdfPath);
+      
+      // Try to share the generated PDF
+      try {
+        await Share.share({
+          url: `file://${pdfPath}`,
+          title: `Inspection Report - ${currentInspection.name}`,
+        });
+      } catch (shareError) {
+        console.log('Share failed (normal in simulator):', shareError);
+        // Fallback for simulator - just show success with path
+        Alert.alert(
+          'PDF Generated Successfully',
+          `Report saved to:\n${pdfPath}\n\n(Sharing may not work in simulator, but will work on real device)`,
+          [{ text: 'OK' }]
+        );
+        return;
+      }
       
       Alert.alert(
         'PDF Generated',
-        'Your inspection report has been generated and is ready to share.',
+        'Your inspection report has been generated and shared successfully.',
         [{ text: 'OK' }]
       );
     } catch (error) {
@@ -120,6 +143,7 @@ export default function ReviewScreen() {
       );
     } finally {
       setGeneratingPDF(false);
+      setPdfProgress('');
     }
   };
 
@@ -266,7 +290,7 @@ export default function ReviewScreen() {
             disabled={generatingPDF}
           >
             <Text style={styles.headerReportText}>
-              {generatingPDF ? 'Generating...' : 'Create Report'}
+              {generatingPDF ? (pdfProgress || 'Generating...') : 'Create Report'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -345,6 +369,25 @@ export default function ReviewScreen() {
             </TouchableOpacity>
           </View>
         </Modal>
+
+        {/* PDF Generation Loading Overlay */}
+        {generatingPDF && (
+          <Modal
+            visible={true}
+            transparent={true}
+            animationType="fade"
+          >
+            <View style={styles.loadingOverlay}>
+              <View style={styles.loadingContent}>
+                <Text style={styles.loadingTitle}>Generating PDF Report</Text>
+                <Text style={styles.loadingMessage}>{pdfProgress}</Text>
+                <View style={styles.loadingSpinner}>
+                  <Text style={styles.spinnerText}>⏳</Text>
+                </View>
+              </View>
+            </View>
+          </Modal>
+        )}
       </SafeAreaView>
     </GestureHandlerRootView>
   );
@@ -594,5 +637,37 @@ const styles = StyleSheet.create({
   fullscreenTags: {
     color: '#ccc',
     fontSize: 14,
+  },
+  loadingOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingContent: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 30,
+    alignItems: 'center',
+    maxWidth: 300,
+    margin: 20,
+  },
+  loadingTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  loadingMessage: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  loadingSpinner: {
+    alignItems: 'center',
+  },
+  spinnerText: {
+    fontSize: 24,
   },
 });
