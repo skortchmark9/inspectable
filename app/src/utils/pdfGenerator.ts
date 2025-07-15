@@ -65,7 +65,10 @@ async function createInspectionHTML(
       // Update progress
       onProgress?.(`Processing photo ${processedImages}/${totalImages}...`, processedImages, totalImages);
       
+      console.log(`Processing item ${processedImages}: URI = ${item.photoUri}`);
       const base64Image = await convertImageToBase64(item.photoUri);
+      console.log(`Base64 result for item ${processedImages}:`, base64Image ? 'SUCCESS (length: ' + base64Image.length + ')' : 'FAILED');
+      
       itemsWithBase64.push({
         ...item,
         base64Image
@@ -113,14 +116,10 @@ async function createInspectionHTML(
  */
 async function convertImageToBase64(uri: string): Promise<string> {
   try {
-    // Check if it's already a local file
-    if (uri.startsWith('file://') || uri.startsWith('/')) {
-      // Local file - would need FileSystem API to read
-      // For now, return a placeholder since we're dealing with remote URLs
-      return createPlaceholderImage();
-    }
+    console.log('Converting image URI to base64:', uri);
     
-    // Remote URL - download and convert
+    // Handle both local files and remote URLs
+    // React Native can fetch local file:// URIs directly
     const response = await fetch(uri);
     
     if (!response.ok) {
@@ -134,6 +133,7 @@ async function convertImageToBase64(uri: string): Promise<string> {
       const reader = new FileReader();
       reader.onload = () => {
         const base64 = reader.result as string;
+        console.log('Successfully converted image to base64, length:', base64.length);
         resolve(base64);
       };
       reader.onerror = () => {
@@ -216,31 +216,31 @@ function generateSummaryHTML(inspection: Inspection, categories: AssignedCategor
 }
 
 /**
- * Generate categories HTML
+ * Generate categories HTML - one photo per page
  */
 function generateCategoriesHTML(categories: AssignedCategory[]): string {
   return categories
     .filter(cat => cat.assignedItems.length > 0) // Only show categories with photos
-    .map(category => `
-      <section class="category">
-        <h3>${category.definition.name}</h3>
-        
-        ${category.completion ? generateRequirementsHTML(category.completion) : ''}
-        
-        <div class="photos-grid">
-          ${category.assignedItems.map(item => `
-            <div class="photo-item">
-              ${item.base64Image ? `<img src="${item.base64Image}" alt="${item.label || 'Inspection Photo'}" />` : ''}
-              <div class="photo-details">
-                <p class="photo-label">${item.label || 'Unlabeled'}</p>
-                <p class="photo-tags">${(item.tags || []).join(', ')}</p>
-                ${item.audioTranscription ? `<p class="photo-transcript">"${item.audioTranscription}"</p>` : ''}
-              </div>
-            </div>
-          `).join('')}
+    .map(category => {
+      const categoryHeader = `
+        <section class="category-header">
+          <h2>${category.definition.name}</h2>
+          ${category.completion ? generateRequirementsHTML(category.completion) : ''}
+        </section>
+      `;
+      
+      const photoPages = category.assignedItems.map(item => `
+        <div class="photo-page">
+          ${item.base64Image ? `<img src="${item.base64Image}" class="photo-image" alt="Inspection Photo" />` : '<div class="no-photo">Photo not available</div>'}
+          <div class="photo-metadata">
+            <p class="photo-timestamp">${new Date(item.timestamp).toLocaleString()}</p>
+            ${(item.tags || []).length > 0 ? `<p class="photo-tags">Tags: ${(item.tags || []).join(', ')}</p>` : ''}
+          </div>
         </div>
-      </section>
-    `).join('');
+      `).join('');
+      
+      return categoryHeader + photoPages;
+    }).join('');
 }
 
 /**
@@ -273,7 +273,6 @@ function generateFooterHTML(): string {
   return `
     <footer class="report-footer">
       <p>Generated on ${new Date().toLocaleString()}</p>
-      <p>🤖 Generated with Claude Code</p>
     </footer>
   `;
 }
@@ -349,16 +348,13 @@ function getReportCSS(): string {
       color: #666;
     }
     
-    .category {
-      margin-bottom: 40px;
-      page-break-inside: avoid;
-    }
-    
-    .category h3 {
+    .category-header h2 {
       color: #007AFF;
-      border-bottom: 1px solid #e0e0e0;
-      padding-bottom: 10px;
-      margin-bottom: 20px;
+      border-bottom: 2px solid #007AFF;
+      padding-bottom: 15px;
+      margin-bottom: 25px;
+      text-align: center;
+      font-size: 24px;
     }
     
     .requirements {
@@ -408,47 +404,58 @@ function getReportCSS(): string {
       font-size: 12px;
     }
     
-    .photos-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-      gap: 20px;
+    .category-header {
+      page-break-after: always;
+      margin-bottom: 20px;
     }
     
-    .photo-item {
-      border: 1px solid #e0e0e0;
-      border-radius: 8px;
-      overflow: hidden;
-      page-break-inside: avoid;
+    .photo-page {
+      page-break-before: always;
+      page-break-after: always;
+      text-align: center;
+      padding: 40px 20px;
+      min-height: 100vh;
     }
     
-    .photo-item img {
-      width: 100%;
+    .photo-image {
+      max-width: 600px;
+      max-height: 600px;
+      border: 2px solid #e0e0e0;
+      margin: 0 auto;
+      display: block;
+    }
+    
+    .no-photo {
+      width: 300px;
       height: 200px;
-      object-fit: cover;
+      border: 2px dashed #ccc;
+      color: #999;
+      font-style: italic;
+      text-align: center;
+      margin: 0 auto;
+      padding: 80px 20px;
     }
     
-    .photo-details {
-      padding: 15px;
+    .photo-metadata {
+      margin-top: 20px;
+      text-align: center;
+      padding: 0 20px;
     }
     
-    .photo-label {
-      font-weight: bold;
-      margin-bottom: 5px;
+    
+    .photo-timestamp {
+      font-size: 16px;
+      font-weight: 600;
+      color: #333;
+      margin-bottom: 8px;
     }
     
     .photo-tags {
       color: #666;
       font-size: 14px;
-      margin-bottom: 5px;
+      margin-bottom: 8px;
     }
     
-    .photo-transcript {
-      font-style: italic;
-      color: #555;
-      font-size: 14px;
-      border-left: 3px solid #007AFF;
-      padding-left: 10px;
-    }
     
     .report-footer {
       text-align: center;
@@ -464,8 +471,13 @@ function getReportCSS(): string {
         padding: 0;
       }
       
-      .category {
-        page-break-before: auto;
+      .photo-page {
+        page-break-before: always;
+        page-break-after: always;
+      }
+      
+      .category-header {
+        page-break-after: always;
       }
     }
   `;

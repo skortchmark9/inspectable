@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, SafeAreaView, Dimensions, ScrollView, FlatList, useColorScheme, Modal, Alert, Share } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, SafeAreaView, Dimensions, ScrollView, FlatList, useColorScheme, Modal } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, { useSharedValue, withSpring } from 'react-native-reanimated';
 import { useInspection } from '@/contexts/InspectionContext';
@@ -7,9 +7,9 @@ import { InspectionItem } from '@/types';
 import { AssignedCategory, ChecklistCategory, SpecificItem } from '@/types/checklist';
 import { PRE_INSPECTION_CHECKLIST } from '@/constants/checklists';
 import { categorizeItemsWithChecklist } from '@/utils/categorization';
-import { generateInspectionPDF } from '@/utils/pdfGenerator';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import PhotoDetailDrawer from '@/components/PhotoDetailDrawer';
+import PDFGenerationButton from '@/components/pdf/PDFGenerationButton';
 
 const { width, height } = Dimensions.get('window');
 const ITEM_WIDTH = 80;
@@ -27,8 +27,6 @@ export default function ReviewScreen() {
   const [showCustomInput, setShowCustomInput] = useState(false);
   const [showInfoFor, setShowInfoFor] = useState<string | null>(null);
   const [fullscreenImage, setFullscreenImage] = useState<InspectionItem | null>(null);
-  const [generatingPDF, setGeneratingPDF] = useState(false);
-  const [pdfProgress, setPdfProgress] = useState('');
   const scrollViewRef = useRef<ScrollView>(null);
   
   const insets = useSafeAreaInsets();
@@ -93,59 +91,6 @@ export default function ReviewScreen() {
     closeDrawer();
   };
 
-  const handleGeneratePDF = async () => {
-    if (!currentInspection) return;
-    
-    setGeneratingPDF(true);
-    setPdfProgress('Starting...');
-    
-    try {
-      const totalPhotos = categories.reduce((sum, cat) => sum + cat.assignedItems.length, 0);
-      console.log(`Starting PDF generation with ${totalPhotos} photos`);
-      
-      const pdfPath = await generateInspectionPDF(
-        currentInspection, 
-        categories,
-        (message, current, total) => {
-          setPdfProgress(message);
-        }
-      );
-      console.log('PDF generated at:', pdfPath);
-      
-      // Try to share the generated PDF
-      try {
-        await Share.share({
-          url: `file://${pdfPath}`,
-          title: `Inspection Report - ${currentInspection.name}`,
-        });
-      } catch (shareError) {
-        console.log('Share failed (normal in simulator):', shareError);
-        // Fallback for simulator - just show success with path
-        Alert.alert(
-          'PDF Generated Successfully',
-          `Report saved to:\n${pdfPath}\n\n(Sharing may not work in simulator, but will work on real device)`,
-          [{ text: 'OK' }]
-        );
-        return;
-      }
-      
-      Alert.alert(
-        'PDF Generated',
-        'Your inspection report has been generated and shared successfully.',
-        [{ text: 'OK' }]
-      );
-    } catch (error) {
-      console.error('PDF generation error:', error);
-      Alert.alert(
-        'PDF Generation Failed',
-        'There was an error generating the PDF report. Please try again.',
-        [{ text: 'OK' }]
-      );
-    } finally {
-      setGeneratingPDF(false);
-      setPdfProgress('');
-    }
-  };
 
   const renderCategoryItem = (item: InspectionItem, index: number, assignedCategory: AssignedCategory) => {
     return (
@@ -284,15 +229,11 @@ export default function ReviewScreen() {
       <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={[styles.header, { backgroundColor: colors.headerBackground, borderBottomColor: colors.border }]}>
           <Text style={[styles.inspectionName, { color: colors.text }]}>{currentInspection.name}</Text>
-          <TouchableOpacity 
-            style={[styles.headerReportButton, generatingPDF && styles.headerReportButtonDisabled]}
-            onPress={handleGeneratePDF}
-            disabled={generatingPDF}
-          >
-            <Text style={styles.headerReportText}>
-              {generatingPDF ? (pdfProgress || 'Generating...') : 'Create Report'}
-            </Text>
-          </TouchableOpacity>
+          <PDFGenerationButton 
+            inspection={currentInspection}
+            categories={categories}
+            colors={colors}
+          />
         </View>
 
         <View style={styles.contentContainer}>
@@ -370,24 +311,6 @@ export default function ReviewScreen() {
           </View>
         </Modal>
 
-        {/* PDF Generation Loading Overlay */}
-        {generatingPDF && (
-          <Modal
-            visible={true}
-            transparent={true}
-            animationType="fade"
-          >
-            <View style={styles.loadingOverlay}>
-              <View style={styles.loadingContent}>
-                <Text style={styles.loadingTitle}>Generating PDF Report</Text>
-                <Text style={styles.loadingMessage}>{pdfProgress}</Text>
-                <View style={styles.loadingSpinner}>
-                  <Text style={styles.spinnerText}>⏳</Text>
-                </View>
-              </View>
-            </View>
-          </Modal>
-        )}
       </SafeAreaView>
     </GestureHandlerRootView>
   );
@@ -413,21 +336,6 @@ const styles = StyleSheet.create({
     color: '#333',
     fontWeight: '500',
     flex: 1,
-  },
-  headerReportButton: {
-    backgroundColor: '#007AFF',
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  headerReportButtonDisabled: {
-    backgroundColor: '#999',
-    opacity: 0.6,
-  },
-  headerReportText: {
-    color: 'white',
-    fontSize: 14,
-    fontWeight: '600',
   },
   contentContainer: {
     flex: 1,
@@ -637,37 +545,5 @@ const styles = StyleSheet.create({
   fullscreenTags: {
     color: '#ccc',
     fontSize: 14,
-  },
-  loadingOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingContent: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 30,
-    alignItems: 'center',
-    maxWidth: 300,
-    margin: 20,
-  },
-  loadingTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  loadingMessage: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  loadingSpinner: {
-    alignItems: 'center',
-  },
-  spinnerText: {
-    fontSize: 24,
   },
 });
