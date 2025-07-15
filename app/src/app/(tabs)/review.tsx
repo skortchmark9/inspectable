@@ -108,7 +108,7 @@ export default function ReviewScreen() {
           style={styles.categoryItemImage}
           resizeMode="cover"
         />
-        {item.processingStatus === 'pending' && (
+        {(item.processingStatus === 'pending' || item.processingStatus === 'processing') && (
           <View style={styles.processingBadge}>
             <Text style={styles.processingText}>⏳</Text>
           </View>

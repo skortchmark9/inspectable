@@ -195,7 +195,10 @@ class InspectionAPIClient {
         formData.append('notes', notes);
       }
       if (exifData) {
-        formData.append('exif_data', JSON.stringify(exifData));
+        console.log('📡 Adding EXIF to FormData:', Object.keys(exifData).length, 'keys');
+        formData.append('exif', JSON.stringify(exifData));
+      } else {
+        console.log('📡 No EXIF data to send');
       }
 
       const url = `${BASE_URL}/inspection-items/inspections/${inspectionId}/items`;

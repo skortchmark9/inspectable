@@ -96,6 +96,11 @@ export function BackgroundProcessorProvider({ children }: BackgroundProcessorPro
       } else {
         // New item - upload to backend
         try {
+          console.log('📤 Uploading item with EXIF:', item.exifData ? 'Yes' : 'No');
+          if (item.exifData) {
+            console.log('📤 EXIF keys being sent:', Object.keys(item.exifData));
+          }
+          
           const result = await apiClient.uploadInspectionItem(
             item.inspectionId,
             item.photoUri,

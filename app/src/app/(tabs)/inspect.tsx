@@ -67,6 +67,11 @@ export default function InspectScreen() {
       if (!photo?.uri) {
         throw new Error('Failed to capture photo');
       }
+      
+      console.log('📷 Photo captured with EXIF:', photo.exif ? 'Yes' : 'No');
+      if (photo.exif) {
+        console.log('📷 EXIF keys:', Object.keys(photo.exif));
+      }
 
       // Step 2: Handle audio - stop current recording and get unique URI
       let audioUri: string | undefined;
