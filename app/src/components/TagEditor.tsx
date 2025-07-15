@@ -18,7 +18,7 @@ interface TagEditorProps {
 }
 
 // Common suggested tags
-const suggestedTags = ['Window', 'Door', 'Wall', 'Ceiling', 'Floor', 'Electrical', 'Plumbing', 'HVAC', 'Exterior', 'Interior'];
+const suggestedTags = ['Datasheet', 'Ductwork', 'Exterior'];
 
 export default function TagEditor({
   selectedPhoto,

@@ -36,7 +36,7 @@ export function useCamera() {
       const photo = await cameraRef.current.takePictureAsync({
         quality: PHOTO_QUALITY,
         base64: false,
-        exif: false,
+        exif: true,
       });
       return photo;
     } catch (error) {

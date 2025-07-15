@@ -17,6 +17,7 @@ export interface InspectionItem {
   photoUri: string;          // Local file path
   audioUri?: string;         // Local audio file
   timestamp: Date;
+  exifData?: any;            // Camera EXIF metadata
   
   // AI Processing Results
   tags?: string[];           // Determines categories dynamically

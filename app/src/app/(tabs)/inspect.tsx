@@ -98,6 +98,7 @@ export default function InspectScreen() {
         photoUri: photo.uri,
         audioUri,
         timestamp: new Date(),
+        exifData: photo.exif,
         processingStatus: 'pending',
         retryCount: 0,
         location: currentLocation ? {

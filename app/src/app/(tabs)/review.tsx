@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, SafeAreaView, Dimensions, ScrollView, FlatList, useColorScheme, Modal } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, SafeAreaView, Dimensions, ScrollView, FlatList, useColorScheme, Modal, Alert, Share } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, { useSharedValue, withSpring } from 'react-native-reanimated';
 import { useInspection } from '@/contexts/InspectionContext';
@@ -7,6 +7,7 @@ import { InspectionItem } from '@/types';
 import { AssignedCategory, ChecklistCategory, SpecificItem } from '@/types/checklist';
 import { PRE_INSPECTION_CHECKLIST } from '@/constants/checklists';
 import { categorizeItemsWithChecklist } from '@/utils/categorization';
+import { generateInspectionPDF } from '@/utils/pdfGenerator';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import PhotoDetailDrawer from '@/components/PhotoDetailDrawer';
 
@@ -26,6 +27,7 @@ export default function ReviewScreen() {
   const [showCustomInput, setShowCustomInput] = useState(false);
   const [showInfoFor, setShowInfoFor] = useState<string | null>(null);
   const [fullscreenImage, setFullscreenImage] = useState<InspectionItem | null>(null);
+  const [generatingPDF, setGeneratingPDF] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
   
   const insets = useSafeAreaInsets();
@@ -88,6 +90,37 @@ export default function ReviewScreen() {
     if (!selectedPhoto) return;
     deleteInspectionItem?.(selectedPhoto.id);
     closeDrawer();
+  };
+
+  const handleGeneratePDF = async () => {
+    if (!currentInspection) return;
+    
+    setGeneratingPDF(true);
+    
+    try {
+      const pdfPath = await generateInspectionPDF(currentInspection, categories);
+      
+      // Share the generated PDF
+      await Share.share({
+        url: `file://${pdfPath}`,
+        title: `Inspection Report - ${currentInspection.name}`,
+      });
+      
+      Alert.alert(
+        'PDF Generated',
+        'Your inspection report has been generated and is ready to share.',
+        [{ text: 'OK' }]
+      );
+    } catch (error) {
+      console.error('PDF generation error:', error);
+      Alert.alert(
+        'PDF Generation Failed',
+        'There was an error generating the PDF report. Please try again.',
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setGeneratingPDF(false);
+    }
   };
 
   const renderCategoryItem = (item: InspectionItem, index: number, assignedCategory: AssignedCategory) => {
@@ -227,8 +260,14 @@ export default function ReviewScreen() {
       <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={[styles.header, { backgroundColor: colors.headerBackground, borderBottomColor: colors.border }]}>
           <Text style={[styles.inspectionName, { color: colors.text }]}>{currentInspection.name}</Text>
-          <TouchableOpacity style={styles.headerReportButton}>
-            <Text style={styles.headerReportText}>Create Report</Text>
+          <TouchableOpacity 
+            style={[styles.headerReportButton, generatingPDF && styles.headerReportButtonDisabled]}
+            onPress={handleGeneratePDF}
+            disabled={generatingPDF}
+          >
+            <Text style={styles.headerReportText}>
+              {generatingPDF ? 'Generating...' : 'Create Report'}
+            </Text>
           </TouchableOpacity>
         </View>
 
@@ -337,6 +376,10 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 16,
     paddingVertical: 8,
+  },
+  headerReportButtonDisabled: {
+    backgroundColor: '#999',
+    opacity: 0.6,
   },
   headerReportText: {
     color: 'white',
