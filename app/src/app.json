@@ -17,7 +17,8 @@
         "NSMicrophoneUsageDescription": "This app needs microphone access to record audio notes during inspections.",
         "NSLocationWhenInUseUsageDescription": "This app needs location access to tag inspection photos with their location.",
         "ITSAppUsesNonExemptEncryption": false
-      }
+      },
+      "backgroundModes": ["audio"]
     },
     "android": {
       "adaptiveIcon": {

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useAudioRecorder, RecordingPresets, AudioModule } from 'expo-audio';
+import { useAudioRecorder, RecordingPresets, AudioModule, setAudioModeAsync } from 'expo-audio';
 import * as FileSystem from 'expo-file-system';
 import * as Crypto from 'expo-crypto';
 import { Alert } from 'react-native';
@@ -16,6 +16,11 @@ export function useAudioRecorderCustom() {
 
   // Request permissions on mount
   useEffect(() => {
+    // Configure audio session for production builds
+    setAudioModeAsync({ 
+      allowsRecording: true,
+      playsInSilentMode: true,
+    });
     requestPermissions();
   }, []);
 
