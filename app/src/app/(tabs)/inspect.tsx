@@ -5,6 +5,7 @@ import {
   Alert,
   SafeAreaView,
   Text,
+  AppState,
 } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
 import * as Crypto from 'expo-crypto';
@@ -18,12 +19,16 @@ import { InspectionItem } from '@/types';
 
 export default function InspectScreen() {
   const [isCapturing, setIsCapturing] = useState(false);
+  const [appState, setAppState] = useState(AppState.currentState);
   const isFocused = useIsFocused();
 
   const { currentInspection, addInspectionItem } = useInspection();
   const audioRecorder = useAudioRecorderCustom();
   const camera = useCamera();
   const location = useLocation();
+
+  // Combine tab focus and app state into single "active" state
+  const isActive = isFocused && appState === 'active';
 
   // If no current inspection, show message
   if (!currentInspection) {
@@ -39,22 +44,29 @@ export default function InspectScreen() {
     );
   }
 
-  // Start recording when on camera tab and permissions granted
+  // Track app state changes
   useEffect(() => {
-    console.log('Audio Effect: hasPermission:', audioRecorder.hasPermission, 'isRecording:', audioRecorder.isRecording, 'isFocused:', isFocused);
-    if (isFocused && audioRecorder.hasPermission && !audioRecorder.isRecording) {
+    const handleAppStateChange = (nextAppState: string) => {
+      console.log('App state changed to:', nextAppState);
+      setAppState(nextAppState);
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    return () => subscription?.remove();
+  }, []);
+
+  // Single effect to manage recording based on active state
+  useEffect(() => {
+    console.log('Audio Effect: hasPermission:', audioRecorder.hasPermission, 'isRecording:', audioRecorder.isRecording, 'isActive:', isActive);
+    
+    if (isActive && audioRecorder.hasPermission && !audioRecorder.isRecording) {
       console.log('Audio Effect: Starting recording...');
       audioRecorder.startRecording();
+    } else if (!isActive && audioRecorder.isRecording) {
+      console.log('Audio Effect: Stopping recording (not active)...');
+      audioRecorder.stopRecording(false); // Don't save when not active
     }
-  }, [audioRecorder.hasPermission, isFocused, audioRecorder.isRecording]);
-
-  // Stop recording when tab loses focus
-  useEffect(() => {
-    if (!isFocused && audioRecorder.isRecording) {
-      console.log('Audio Effect: Tab unfocused, stopping recording...');
-      audioRecorder.stopRecording(false); // Don't save when tab loses focus
-    }
-  }, [isFocused, audioRecorder.isRecording]);
+  }, [audioRecorder.hasPermission, isActive]);
 
   const handleCapture = useCallback(async () => {
     if (isCapturing || !camera.hasPermission) return;
