@@ -95,12 +95,7 @@ export function BackgroundProcessorProvider({ children }: BackgroundProcessorPro
         }
       } else {
         // New item - upload to backend
-        try {
-          console.log('📤 Uploading item with EXIF:', item.exifData ? 'Yes' : 'No');
-          if (item.exifData) {
-            console.log('📤 EXIF keys being sent:', Object.keys(item.exifData));
-          }
-          
+        try {          
           const result = await apiClient.uploadInspectionItem(
             item.inspectionId,
             item.photoUri,
@@ -122,7 +117,9 @@ export function BackgroundProcessorProvider({ children }: BackgroundProcessorPro
           });
 
         } catch (uploadError) {
-          
+          // @SAM THIS IS DEFINITELY NOT RIGHT AND CAN RESULT IN DATA LOSS
+          // ITEM IS NOT AT ALL IN BACKEND
+          // AND WHEN WE RE-LOAD THE ITEMS ARE ONLY IN LOCAL STORAGE WHICH WE DONT LOOK IN
           updateInspectionItem(item.id, {
             processingStatus: 'completed',
             suggestedLabel: item.label || `Item ${new Date().toLocaleTimeString()}`,
@@ -142,7 +139,8 @@ export function BackgroundProcessorProvider({ children }: BackgroundProcessorPro
 
   const handleRetry = useCallback((item: InspectionItem): void => {
     const newRetryCount = (item.retryCount || 0) + 1;
-    
+    // @SAM I AGREE WITH STOPPING AFTER A CERTAIN AMOUNT OF TIME BUT
+    // WE SHOULD ALSO BE ABLE TO MANUALLY KICK THIS AND ON NETWORK STATUS CHANG
     if (newRetryCount >= maxRetries) {
       updateInspectionItem(item.id, {
         processingStatus: 'failed',

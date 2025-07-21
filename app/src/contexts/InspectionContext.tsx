@@ -134,6 +134,7 @@ export function InspectionProvider({ children }: InspectionProviderProps) {
               day: 'numeric', 
               year: 'numeric' 
             })} - ${backendInspection.property_address}`,
+            // LOL NEED TO FIX THIS
             location: {
               latitude: 37.7749,
               longitude: -122.4194,
@@ -170,6 +171,7 @@ export function InspectionProvider({ children }: InspectionProviderProps) {
             });
           } else {
             // Local inspection doesn't exist on backend - keep it
+            //@SAM MAYBE WE SHOULD SYNC IT THEN
             console.log(`🔄 Preserving local-only inspection ${localInspection.id}`);
             merged.push(localInspection);
           }
@@ -343,6 +345,7 @@ export function InspectionProvider({ children }: InspectionProviderProps) {
     }
 
     // Remove from local state
+    // @SAM WE ALSO NEED TO DELETE ASSOCIATED AUDIO / PHOTOS  
     setInspections(prev => {
       const updated = prev.filter(i => i.id !== inspectionId);
       debouncedSaveToStorage(updated);
