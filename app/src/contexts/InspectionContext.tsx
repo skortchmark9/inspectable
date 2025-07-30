@@ -434,12 +434,22 @@ export function InspectionProvider({ children }: InspectionProviderProps) {
         }
       }
 
+      const summary = {
+        totalFiles: allFiles.length,
+        imageCount,
+        audioCount,
+        totalSizeMB: (totalSize / 1024 / 1024).toFixed(2),
+        avgFileSizeKB: allFiles.length > 0 ? (totalSize / allFiles.length / 1024).toFixed(2) : '0'
+      };
+
       console.log(`\n📊 STORAGE SUMMARY:`);
-      console.log(`📱 Total Files: ${allFiles.length}`);
-      console.log(`📸 Images: ${imageCount}`);
-      console.log(`🎵 Audio: ${audioCount}`);
-      console.log(`💾 Total Size: ${(totalSize / 1024 / 1024).toFixed(2)}MB`);
-      console.log(`📁 Average per file: ${allFiles.length > 0 ? (totalSize / allFiles.length / 1024).toFixed(2) : 0}KB\n`);
+      console.log(`📱 Total Files: ${summary.totalFiles}`);
+      console.log(`📸 Images: ${summary.imageCount}`);
+      console.log(`🎵 Audio: ${summary.audioCount}`);
+      console.log(`💾 Total Size: ${summary.totalSizeMB}MB`);
+      console.log(`📁 Average per file: ${summary.avgFileSizeKB}KB\n`);
+
+      return summary;
 
     } catch (error) {
       console.error('❌ Error getting storage usage:', error);
