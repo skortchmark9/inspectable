@@ -15,7 +15,12 @@
       }
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "env": {
+        "SENTRY_ORG": "live-wire-we",
+        "SENTRY_PROJECT": "inspectable",
+        "SENTRY_URL": "https://sentry.io/"
+      }
     }
   },
   "submit": {

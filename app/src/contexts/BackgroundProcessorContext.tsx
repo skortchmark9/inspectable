@@ -101,7 +101,7 @@ export function BackgroundProcessorProvider({ children }: BackgroundProcessorPro
             item.inspectionId,
             item.photoUri,
             item.audioUri || null,
-            item.label || 'Inspection Item',
+            item.label || '',
             item.location,
             '',
             item.exifData
@@ -109,7 +109,7 @@ export function BackgroundProcessorProvider({ children }: BackgroundProcessorPro
 
           updateInspectionItem(item.id, {
             processingStatus: 'completed',
-            suggestedLabel: result.suggested_label || item.label || 'Inspection Item',
+            suggestedLabel: result.suggested_label || item.label || '',
             audioTranscription: result.audio_transcription || '',
             backendId: result.id,
             tags: result.tags || [],
