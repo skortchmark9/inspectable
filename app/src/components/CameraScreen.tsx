@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   StyleSheet,
@@ -33,6 +33,12 @@ export function CameraScreen({
   isCapturing,
   lastPhotoUri,
 }: CameraScreenProps) {
+  const [torchEnabled, setTorchEnabled] = useState(false);
+
+  const toggleFlash = () => {
+    setTorchEnabled(prev => !prev);
+  };
+
   return (
     <View style={styles.container}>
       <CameraView
@@ -40,19 +46,30 @@ export function CameraScreen({
         ref={cameraRef}
         style={styles.camera}
         facing="back"
+        enableTorch={torchEnabled}
         onCameraReady={() => setIsReady(true)}
       />
       
       {/* Overlay positioned absolutely on top of camera */}
       <View style={styles.overlay}>
         <View style={styles.topBar}>
-          <View style={styles.recordingIndicator}>
-            {isRecording && (
-              <>
-                <View style={styles.recordingDot} />
-                <Text style={styles.recordingText}>Recording Audio</Text>
-              </>
-            )}
+          <View style={styles.leftControls}>
+            <View style={styles.recordingIndicator}>
+              {isRecording && (
+                <>
+                  <View style={styles.recordingDot} />
+                  <Text style={styles.recordingText}>Recording Audio</Text>
+                </>
+              )}
+            </View>
+            <TouchableOpacity
+              style={[styles.flashButton, torchEnabled && styles.flashButtonActive]}
+              onPress={toggleFlash}
+            >
+              <Text style={styles.flashButtonText}>
+                {torchEnabled ? '💡' : '🔦'}
+              </Text>
+            </TouchableOpacity>
           </View>
           <TouchableOpacity
             style={styles.finishButton}
@@ -124,6 +141,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     pointerEvents: 'auto',
   },
+  leftControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
   recordingIndicator: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -153,6 +175,20 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  flashButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  flashButtonActive: {
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  flashButtonText: {
+    fontSize: 20,
   },
   bottomContainer: {
     position: 'absolute',

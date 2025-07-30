@@ -535,10 +535,6 @@ export function InspectionProvider({ children }: InspectionProviderProps) {
     // Find the inspection to get its media files before deleting
     const inspectionToDelete = inspections.find(i => i.id === inspectionId);
     
-    // Check storage usage BEFORE deletion
-    console.log('📊 STORAGE BEFORE DELETION:');
-    await getStorageUsage();
-    
     try {
       // Try to delete from backend first
       await apiClient.deleteInspection(inspectionId);
@@ -551,15 +547,12 @@ export function InspectionProvider({ children }: InspectionProviderProps) {
     if (inspectionToDelete) {
       try {
         await cleanupInspectionMediaFiles(inspectionToDelete);
+        console.log(`🧹 Cleaned up media files for inspection ${inspectionId}`);
       } catch (error) {
         console.error('Failed to cleanup media files:', error);
         // Continue with inspection deletion even if file cleanup fails
       }
     }
-
-    // Check storage usage AFTER deletion
-    console.log('📊 STORAGE AFTER DELETION:');
-    await getStorageUsage();
 
     // Remove from local state
     setInspections(prev => {
@@ -572,7 +565,7 @@ export function InspectionProvider({ children }: InspectionProviderProps) {
     if (currentInspectionId === inspectionId) {
       await setCurrentInspection(null);
     }
-  }, [inspections, cleanupInspectionMediaFiles, getStorageUsage, currentInspectionId, setCurrentInspection, debouncedSaveToStorage]);
+  }, [inspections, cleanupInspectionMediaFiles, currentInspectionId, setCurrentInspection, debouncedSaveToStorage]);
 
   const value: InspectionContextType = {
     currentInspection,

@@ -1,2 +1,8 @@
 node_modules
 *.p8
+
+# Sentry configuration files (contain sensitive auth tokens)
+ios/sentry.properties
+android/sentry.properties
+app/src/ios/sentry.properties
+app/src/android/sentry.properties
