@@ -80,6 +80,7 @@ export interface InspectionContextType {
   updateInspection: (inspectionId: string, updates: Partial<Inspection>) => Promise<void>;
   deleteInspectionItem: (itemId: string) => Promise<void>;
   deleteInspection: (inspectionId: string) => Promise<void>;
+  getStorageUsage: () => Promise<void>;
 }
 
 export interface QueueContextType {

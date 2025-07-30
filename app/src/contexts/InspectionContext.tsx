@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import * as Crypto from 'expo-crypto';
+import * as FileSystem from 'expo-file-system';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { InspectionContextType, Inspection, InspectionItem } from '@/types';
 import { apiClient } from '@/services/api';
@@ -356,6 +357,132 @@ export function InspectionProvider({ children }: InspectionProviderProps) {
     });
   }, [currentInspectionId, debouncedSaveToStorage]);
 
+  const getStorageUsage = useCallback(async () => {
+    try {
+      const documentDir = FileSystem.documentDirectory;
+      const cacheDir = FileSystem.cacheDirectory;
+      
+      console.log('📊 Storage Directories:');
+      console.log('📁 Documents:', documentDir);
+      console.log('📁 Cache:', cacheDir);
+
+      const directoriesToCheck = [];
+      if (documentDir) directoriesToCheck.push({ name: 'Documents', path: documentDir });
+      if (cacheDir) directoriesToCheck.push({ name: 'Cache', path: cacheDir });
+
+      // List all files in document directory recursively
+      const getAllFiles = async (dir: string, allFiles: string[] = []): Promise<string[]> => {
+        try {
+          const files = await FileSystem.readDirectoryAsync(dir);
+          for (const file of files) {
+            const filePath = `${dir}${file}`;
+            const fileInfo = await FileSystem.getInfoAsync(filePath);
+            
+            if (fileInfo.isDirectory) {
+              await getAllFiles(`${filePath}/`, allFiles);
+            } else {
+              allFiles.push(filePath);
+            }
+          }
+        } catch (error) {
+          console.error(`Error reading directory ${dir}:`, error);
+        }
+        return allFiles;
+      };
+
+      let allFiles: string[] = [];
+      let totalSize = 0;
+      let imageCount = 0;
+      let audioCount = 0;
+
+      // Check all directories
+      for (const directory of directoriesToCheck) {
+        console.log(`\n📂 Scanning ${directory.name} directory...`);
+        const dirFiles = await getAllFiles(directory.path);
+        allFiles = [...allFiles, ...dirFiles];
+        console.log(`📁 Found ${dirFiles.length} files in ${directory.name}`);
+      }
+
+      console.log(`\n📁 Found ${allFiles.length} total files across all directories:`);
+      
+      for (const file of allFiles) {
+        try {
+          const fileInfo = await FileSystem.getInfoAsync(file);
+          if (fileInfo.exists && fileInfo.size) {
+            totalSize += fileInfo.size;
+            
+            const fileName = file.split('/').pop() || '';
+            if (fileName.match(/\.(jpg|jpeg|png|heic|webp|bmp|gif|tiff?)$/i)) {
+              imageCount++;
+              console.log(`📸 Image: ${fileName} (${(fileInfo.size / 1024 / 1024).toFixed(2)}MB) - ${file}`);
+            } else if (fileName.match(/\.(m4a|mp3|wav|aac|caf|amr)$/i)) {
+              audioCount++;
+              console.log(`🎵 Audio: ${fileName} (${(fileInfo.size / 1024 / 1024).toFixed(2)}MB) - ${file}`);
+            } else {
+              // Check if it might be an image file without extension (by size - images are usually larger)
+              const sizeKB = fileInfo.size / 1024;
+              if (sizeKB > 50 && !fileName.includes('.') && !file.includes('RCTAsyncLocalStorage')) {
+                console.log(`🖼️ Possible Image (no ext): ${fileName} (${sizeKB.toFixed(2)}KB) - ${file}`);
+              } else {
+                // Log other files to see what we might be missing
+                console.log(`📄 Other: ${fileName} (${sizeKB.toFixed(2)}KB) - ${file}`);
+              }
+            }
+          }
+        } catch (error) {
+          console.error(`Error getting file info for ${file}:`, error);
+        }
+      }
+
+      console.log(`\n📊 STORAGE SUMMARY:`);
+      console.log(`📱 Total Files: ${allFiles.length}`);
+      console.log(`📸 Images: ${imageCount}`);
+      console.log(`🎵 Audio: ${audioCount}`);
+      console.log(`💾 Total Size: ${(totalSize / 1024 / 1024).toFixed(2)}MB`);
+      console.log(`📁 Average per file: ${allFiles.length > 0 ? (totalSize / allFiles.length / 1024).toFixed(2) : 0}KB\n`);
+
+    } catch (error) {
+      console.error('❌ Error getting storage usage:', error);
+    }
+  }, []);
+
+  const cleanupInspectionMediaFiles = useCallback(async (inspection: Inspection) => {
+    console.log(`🧹 Cleaning up media files for inspection ${inspection.id}`);
+    
+    const items = Object.values(inspection.items || {});
+    console.log(`📁 Found ${items.length} items to check for media files`);
+    
+    const cleanupPromises = items.map(async (item) => {
+      const filesToDelete = [];
+      
+      // Add photo file if it exists and is a local file
+      if (item.photoUri && item.photoUri.startsWith('file://')) {
+        filesToDelete.push(item.photoUri);
+      }
+      
+      // Add audio file if it exists and is a local file
+      if (item.audioUri && item.audioUri.startsWith('file://')) {
+        filesToDelete.push(item.audioUri);
+      }
+      
+      // Delete each file
+      for (const fileUri of filesToDelete) {
+        try {
+          const fileInfo = await FileSystem.getInfoAsync(fileUri);
+          if (fileInfo.exists) {
+            await FileSystem.deleteAsync(fileUri);
+            console.log(`🗑️ Deleted file: ${fileUri}`);
+          }
+        } catch (error) {
+          console.error(`❌ Failed to delete file ${fileUri}:`, error);
+        }
+      }
+    });
+    
+    await Promise.all(cleanupPromises);
+    console.log(`✅ Completed cleanup for inspection ${inspection.id}`);
+  }, []);
+
   const updateInspection = useCallback(async (inspectionId: string, updates: Partial<Inspection>) => {
     console.log(`🔄 Updating inspection ${inspectionId}:`, updates);
     
@@ -387,6 +514,13 @@ export function InspectionProvider({ children }: InspectionProviderProps) {
   }, [debouncedSaveToStorage]);
 
   const deleteInspection = useCallback(async (inspectionId: string) => {
+    // Find the inspection to get its media files before deleting
+    const inspectionToDelete = inspections.find(i => i.id === inspectionId);
+    
+    // Check storage usage BEFORE deletion
+    console.log('📊 STORAGE BEFORE DELETION:');
+    await getStorageUsage();
+    
     try {
       // Try to delete from backend first
       await apiClient.deleteInspection(inspectionId);
@@ -395,8 +529,21 @@ export function InspectionProvider({ children }: InspectionProviderProps) {
       // Continue with local deletion even if backend fails
     }
 
+    // Clean up associated media files
+    if (inspectionToDelete) {
+      try {
+        await cleanupInspectionMediaFiles(inspectionToDelete);
+      } catch (error) {
+        console.error('Failed to cleanup media files:', error);
+        // Continue with inspection deletion even if file cleanup fails
+      }
+    }
+
+    // Check storage usage AFTER deletion
+    console.log('📊 STORAGE AFTER DELETION:');
+    await getStorageUsage();
+
     // Remove from local state
-    // @SAM WE ALSO NEED TO DELETE ASSOCIATED AUDIO / PHOTOS  
     setInspections(prev => {
       const updated = prev.filter(i => i.id !== inspectionId);
       debouncedSaveToStorage(updated);
@@ -407,7 +554,7 @@ export function InspectionProvider({ children }: InspectionProviderProps) {
     if (currentInspectionId === inspectionId) {
       await setCurrentInspection(null);
     }
-  }, [currentInspectionId, setCurrentInspection, debouncedSaveToStorage]);
+  }, [inspections, cleanupInspectionMediaFiles, getStorageUsage, currentInspectionId, setCurrentInspection, debouncedSaveToStorage]);
 
   const value: InspectionContextType = {
     currentInspection,
@@ -419,6 +566,7 @@ export function InspectionProvider({ children }: InspectionProviderProps) {
     updateInspection,
     deleteInspectionItem,
     deleteInspection,
+    getStorageUsage,
   };
 
   return (

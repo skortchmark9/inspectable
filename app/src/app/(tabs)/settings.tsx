@@ -7,7 +7,7 @@ import { useInspection } from '@/contexts/InspectionContext';
 export default function SettingsScreen() {
   const { logout } = useAuth();
   const { retryUploadSync, isProcessing } = useBackgroundProcessor();
-  const { currentInspection } = useInspection();
+  const { currentInspection, getStorageUsage } = useInspection();
 
   const handleLogout = async () => {
     try {
@@ -44,6 +44,15 @@ export default function SettingsScreen() {
     );
   };
 
+  const handleCheckStorage = async () => {
+    Alert.alert(
+      'Checking Storage',
+      'Storage usage details will be shown in the console. Check your debug logs.',
+      [{ text: 'OK' }]
+    );
+    await getStorageUsage();
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
@@ -63,6 +72,16 @@ export default function SettingsScreen() {
             ) : (
               <Text style={styles.syncButtonText}>Retry Failed Uploads</Text>
             )}
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Storage</Text>
+          <TouchableOpacity 
+            style={styles.storageButton}
+            onPress={handleCheckStorage}
+          >
+            <Text style={styles.storageButtonText}>Check Storage Usage</Text>
           </TouchableOpacity>
         </View>
 
@@ -119,6 +138,17 @@ const styles = StyleSheet.create({
   },
   processingButton: {
     opacity: 0.8,
+  },
+  storageButton: {
+    backgroundColor: '#8E8E93',
+    padding: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  storageButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
   logoutButton: {
     backgroundColor: '#FF3B30',
