@@ -93,9 +93,9 @@ export function InspectionProvider({ children }: InspectionProviderProps) {
               day: 'numeric', 
               year: 'numeric' 
             })} - ${backendInspection.property_address}`,
-            location: {
-              latitude: 37.7749, // Default location for now
-              longitude: -122.4194,
+            location: {              
+              latitude: backendInspection.metadata?.latitude || 37.7749, // Try metadata or default
+              longitude: backendInspection.metadata?.longitude || -122.4194,
               address: backendInspection.property_address,
             },
             createdAt: new Date(backendInspection.created_at),
@@ -134,10 +134,9 @@ export function InspectionProvider({ children }: InspectionProviderProps) {
               day: 'numeric', 
               year: 'numeric' 
             })} - ${backendInspection.property_address}`,
-            // LOL NEED TO FIX THIS
             location: {
-              latitude: 37.7749,
-              longitude: -122.4194,
+              latitude: backendInspection.metadata?.latitude || 37.7749,
+              longitude: backendInspection.metadata?.longitude || -122.4194,
               address: backendInspection.property_address,
             },
             createdAt: new Date(backendInspection.created_at),
@@ -161,7 +160,7 @@ export function InspectionProvider({ children }: InspectionProviderProps) {
             // Merge items: preserve local items that haven't been uploaded
             const localItems = Object.values(localInspection.items || {});
             const pendingItems = localItems.filter(item => 
-              !item.backendId && (item.processingStatus === 'pending' || item.processingStatus === 'processing')
+              !item.backendId && (item.processingStatus === 'pending' || item.processingStatus === 'processing' || item.processingStatus === 'failed')
             );
             
             // Add pending local items to the backend inspection

@@ -30,20 +30,6 @@ export default function InspectScreen() {
   // Combine tab focus and app state into single "active" state
   const isActive = isFocused && appState === 'active';
 
-  // If no current inspection, show message
-  if (!currentInspection) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.noInspectionContainer}>
-          <Text style={styles.noInspectionText}>No inspection selected</Text>
-          <Text style={styles.noInspectionSubtext}>
-            Please select or create an inspection from the Home tab
-          </Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
   // Track app state changes
   useEffect(() => {
     const handleAppStateChange = (nextAppState: string) => {
@@ -57,6 +43,9 @@ export default function InspectScreen() {
 
   // Single effect to manage recording based on active state
   useEffect(() => {
+    // Only manage recording if we have a current inspection
+    if (!currentInspection) return;
+    
     console.log('Audio Effect: hasPermission:', audioRecorder.hasPermission, 'isRecording:', audioRecorder.isRecording, 'isActive:', isActive);
     
     if (isActive && audioRecorder.hasPermission && !audioRecorder.isRecording) {
@@ -66,7 +55,21 @@ export default function InspectScreen() {
       console.log('Audio Effect: Stopping recording (not active)...');
       audioRecorder.stopRecording(false); // Don't save when not active
     }
-  }, [audioRecorder.hasPermission, isActive]);
+  }, [audioRecorder.hasPermission, isActive, currentInspection]);
+
+  // If no current inspection, show message
+  if (!currentInspection) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.noInspectionContainer}>
+          <Text style={styles.noInspectionText}>No inspection selected</Text>
+          <Text style={styles.noInspectionSubtext}>
+            Please select or create an inspection from the Home tab
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   const handleCapture = useCallback(async () => {
     if (isCapturing || !camera.hasPermission) return;

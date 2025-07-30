@@ -10,6 +10,7 @@ import {
   FlatList,
 } from 'react-native';
 import { router } from 'expo-router';
+import * as Location from 'expo-location';
 import { useInspection } from '@/contexts/InspectionContext';
 import { useLocation } from '@/hooks/useLocation';
 import { Inspection } from '@/types';
@@ -26,16 +27,43 @@ export default function HomeScreen() {
       
       // Get current location
       const currentLocation = location.location;
-      const inspectionLocation = currentLocation 
+      let address = 'Unknown Location';
+      
+      if (currentLocation?.coords) {
+        // Try to get actual address from coordinates
+        try {
+          const reverseGeocode = await Location.reverseGeocodeAsync({
+            latitude: currentLocation.coords.latitude,
+            longitude: currentLocation.coords.longitude,
+          });
+          
+          if (reverseGeocode && reverseGeocode.length > 0) {
+            const addr = reverseGeocode[0];
+            // Build a proper address string from the components (street only)
+            const addressParts = [];
+            if (addr.streetNumber) addressParts.push(addr.streetNumber);
+            if (addr.street) addressParts.push(addr.street);
+            if (!addressParts.length && addr.name) addressParts.push(addr.name);
+            
+            address = addressParts.join(' ') || addr.formattedAddress || 'Unknown Location';
+          }
+        } catch (geocodeError) {
+          console.warn('Failed to reverse geocode:', geocodeError);
+          // Fall back to coordinate string if reverse geocoding fails
+          address = `${currentLocation.coords.latitude.toFixed(4)}, ${currentLocation.coords.longitude.toFixed(4)}`;
+        }
+      }
+      
+      const inspectionLocation = currentLocation?.coords 
         ? { 
-            latitude: currentLocation.latitude, 
-            longitude: currentLocation.longitude,
-            address: '4 Main St' // Hardcoded for now as per plan
+            latitude: currentLocation.coords.latitude, 
+            longitude: currentLocation.coords.longitude,
+            address
           }
         : { 
             latitude: 37.7749, 
-            longitude: -122.4194, // Default to SF
-            address: '4 Main St' 
+            longitude: -122.4194, // Default to SF if no location available
+            address: 'San Francisco, CA' 
           };
 
       // Generate inspection name: "Dec 15, 2024 - Location"

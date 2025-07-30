@@ -6,6 +6,7 @@ import { InspectionItem } from '@/types';
 interface BackgroundProcessorContextType {
   update: () => void;
   isProcessing: boolean;
+  retryUploadSync: () => void;
 }
 
 const BackgroundProcessorContext = createContext<BackgroundProcessorContextType | undefined>(undefined);
@@ -117,17 +118,8 @@ export function BackgroundProcessorProvider({ children }: BackgroundProcessorPro
           });
 
         } catch (uploadError) {
-          // @SAM THIS IS DEFINITELY NOT RIGHT AND CAN RESULT IN DATA LOSS
-          // ITEM IS NOT AT ALL IN BACKEND
-          // AND WHEN WE RE-LOAD THE ITEMS ARE ONLY IN LOCAL STORAGE WHICH WE DONT LOOK IN
-          updateInspectionItem(item.id, {
-            processingStatus: 'completed',
-            suggestedLabel: item.label || `Item ${new Date().toLocaleTimeString()}`,
-            audioTranscription: item.audioUri ? 'Audio recorded - backend processing failed' : '',
-            tags: [],
-            description: 'Processing completed locally',
-            ocr_text: '',
-          });
+          console.error('Failed to upload item to backend:', uploadError);
+          throw uploadError; // Let the outer catch handle retry logic
         }
       }
 
@@ -139,8 +131,7 @@ export function BackgroundProcessorProvider({ children }: BackgroundProcessorPro
 
   const handleRetry = useCallback((item: InspectionItem): void => {
     const newRetryCount = (item.retryCount || 0) + 1;
-    // @SAM I AGREE WITH STOPPING AFTER A CERTAIN AMOUNT OF TIME BUT
-    // WE SHOULD ALSO BE ABLE TO MANUALLY KICK THIS AND ON NETWORK STATUS CHANG
+    
     if (newRetryCount >= maxRetries) {
       updateInspectionItem(item.id, {
         processingStatus: 'failed',
@@ -158,9 +149,41 @@ export function BackgroundProcessorProvider({ children }: BackgroundProcessorPro
     }
   }, [updateInspectionItem]);
 
+  const retryUploadSync = useCallback(() => {
+    if (!currentInspection) return;
+
+    const itemsArray = Object.values(currentInspection.items);
+    const retryableItems = itemsArray.filter(
+      item => (item.processingStatus === 'failed' || item.processingStatus === 'pending') && 
+              !processingItemsRef.current.has(item.id)
+    );
+
+    if (retryableItems.length === 0) {
+      console.log('No items to retry');
+      return;
+    }
+
+    console.log(`Manually retrying ${retryableItems.length} items`);
+    
+    // Reset retry count for failed items
+    retryableItems.forEach(item => {
+      if (item.processingStatus === 'failed') {
+        updateInspectionItem(item.id, {
+          processingStatus: 'pending',
+          retryCount: 0,
+          lastProcessingAttempt: new Date(),
+        });
+      }
+    });
+
+    // Trigger update to process the items
+    update();
+  }, [currentInspection, updateInspectionItem, update]);
+
   const value: BackgroundProcessorContextType = {
     update,
     isProcessing,
+    retryUploadSync,
   };
 
   return (

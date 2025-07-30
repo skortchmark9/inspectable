@@ -5,6 +5,52 @@ import Animated, { useAnimatedStyle, useAnimatedGestureHandler, withSpring, runO
 import { InspectionItem } from '@/types';
 import TagEditor from './TagEditor';
 
+// Helper functions for status display
+const getStatusDisplay = (status: string, retryCount: number) => {
+  switch (status) {
+    case 'pending':
+      return retryCount > 0 ? `Pending (Retry ${retryCount})` : 'Pending Upload';
+    case 'processing':
+      return 'Uploading...';
+    case 'completed':
+      return 'Synced';
+    case 'failed':
+      return `Failed (${retryCount} attempts)`;
+    default:
+      return status;
+  }
+};
+
+const getStatusStyle = (status: string) => {
+  switch (status) {
+    case 'pending':
+      return { backgroundColor: '#FFF3CD', borderColor: '#856404' };
+    case 'processing':
+      return { backgroundColor: '#CCE5FF', borderColor: '#004085' };
+    case 'completed':
+      return { backgroundColor: '#D4EDDA', borderColor: '#155724' };
+    case 'failed':
+      return { backgroundColor: '#F8D7DA', borderColor: '#721C24' };
+    default:
+      return { backgroundColor: '#F8F9FA', borderColor: '#6C757D' };
+  }
+};
+
+const getStatusTextStyle = (status: string) => {
+  switch (status) {
+    case 'pending':
+      return { color: '#856404' };
+    case 'processing':
+      return { color: '#004085' };
+    case 'completed':
+      return { color: '#155724' };
+    case 'failed':
+      return { color: '#721C24' };
+    default:
+      return { color: '#6C757D' };
+  }
+};
+
 interface PhotoDetailDrawerProps {
   selectedPhoto: InspectionItem;
   currentInspection: any;
@@ -166,6 +212,21 @@ export default function PhotoDetailDrawer({
                 </ScrollView>
               </View>
             )}
+            
+            {/* Processing Status */}
+            <View style={styles.statusSection}>
+              <Text style={[styles.statusTitle, { color: colors.text }]}>Sync Status:</Text>
+              <View style={[styles.statusBadge, getStatusStyle(freshItem.processingStatus)]}>
+                <Text style={[styles.statusText, getStatusTextStyle(freshItem.processingStatus)]}>
+                  {getStatusDisplay(freshItem.processingStatus, freshItem.retryCount || 0)}
+                </Text>
+              </View>
+              {freshItem.lastProcessingAttempt && (
+                <Text style={[styles.statusSubtext, { color: colors.secondaryText }]}>
+                  Last attempt: {new Date(freshItem.lastProcessingAttempt).toLocaleString()}
+                </Text>
+              )}
+            </View>
           </View>
         </View>
       </Animated.View>
@@ -254,5 +315,34 @@ const styles = StyleSheet.create({
     color: 'white',
     fontWeight: '600',
     textAlign: 'center',
+  },
+  statusSection: {
+    marginTop: 16,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#E0E0E0',
+  },
+  statusTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 6,
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+    borderWidth: 1,
+    alignSelf: 'flex-start',
+  },
+  statusText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  statusSubtext: {
+    fontSize: 11,
+    color: '#666',
+    marginTop: 4,
+    fontStyle: 'italic',
   },
 });
