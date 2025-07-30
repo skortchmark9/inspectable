@@ -18,7 +18,9 @@
         "NSLocationWhenInUseUsageDescription": "This app needs location access to tag inspection photos with their location.",
         "ITSAppUsesNonExemptEncryption": false
       },
-      "backgroundModes": ["audio"]
+      "backgroundModes": [
+        "audio"
+      ]
     },
     "android": {
       "adaptiveIcon": {
@@ -80,6 +82,14 @@
         "expo-audio",
         {
           "microphonePermission": "Allow $(PRODUCT_NAME) to access your microphone."
+        }
+      ],
+      [
+        "@sentry/react-native/expo",
+        {
+          "url": "https://sentry.io/",
+          "project": "react-native",
+          "organization": "live-wire-we"
         }
       ]
     ],

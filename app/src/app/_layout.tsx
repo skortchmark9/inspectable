@@ -9,6 +9,23 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { AppProviders } from '@/contexts/AppProviders';
 import { useAuth } from '@/contexts/AuthContext';
 import AuthScreen from '@/components/AuthScreen';
+import * as Sentry from '@sentry/react-native';
+
+Sentry.init({
+  dsn: 'https://82fd34355bc4d6846669c0f53f9e6498@o4509755522809856.ingest.us.sentry.io/4509755523072000',
+
+  // Adds more context data to events (IP address, cookies, user, etc.)
+  // For more information, visit: https://docs.sentry.io/platforms/react-native/data-management/data-collected/
+  sendDefaultPii: true,
+
+  // Configure Session Replay
+  replaysSessionSampleRate: 0.1,
+  replaysOnErrorSampleRate: 1,
+  integrations: [Sentry.mobileReplayIntegration(), Sentry.feedbackIntegration()],
+
+  // uncomment the line below to enable Spotlight (https://spotlightjs.com)
+  // spotlight: __DEV__,
+});
 
 function RootLayoutNav() {
   const colorScheme = useColorScheme();
@@ -39,7 +56,7 @@ function RootLayoutNav() {
   );
 }
 
-export default function RootLayout() {
+export default Sentry.wrap(function RootLayout() {
   const [loaded] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
   });
@@ -54,7 +71,7 @@ export default function RootLayout() {
       <RootLayoutNav />
     </AppProviders>
   );
-}
+});
 
 const styles = StyleSheet.create({
   loadingContainer: {

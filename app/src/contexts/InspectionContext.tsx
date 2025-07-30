@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import * as Crypto from 'expo-crypto';
 import * as FileSystem from 'expo-file-system';
+import * as Sentry from '@sentry/react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { InspectionContextType, Inspection, InspectionItem } from '@/types';
 import { apiClient } from '@/services/api';
@@ -365,6 +366,13 @@ export function InspectionProvider({ children }: InspectionProviderProps) {
       console.log('📊 Storage Directories:');
       console.log('📁 Documents:', documentDir);
       console.log('📁 Cache:', cacheDir);
+      
+      // Also log to Sentry for production debugging
+      Sentry.addBreadcrumb({
+        message: 'Storage check started',
+        data: { documentDir, cacheDir },
+        level: 'info'
+      });
 
       const directoriesToCheck = [];
       if (documentDir) directoriesToCheck.push({ name: 'Documents', path: documentDir });

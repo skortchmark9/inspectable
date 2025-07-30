@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, Alert, ActivityIndicator } from 'react-native';
+import * as Sentry from '@sentry/react-native';
 import { useAuth } from '@/contexts/AuthContext';
 import { useBackgroundProcessor } from '@/contexts/BackgroundProcessorContext';
 import { useInspection } from '@/contexts/InspectionContext';
@@ -90,6 +91,15 @@ export default function SettingsScreen() {
             <Text style={styles.logoutButtonText}>Logout</Text>
           </TouchableOpacity>
         </View>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Debug</Text>
+          <TouchableOpacity 
+            style={styles.testButton}
+            onPress={() => { Sentry.captureException(new Error('First error')) }}
+          >
+            <Text style={styles.testButtonText}>Test Sentry Logging</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -157,6 +167,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   logoutButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  testButton: {
+    backgroundColor: '#FF9500',
+    padding: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  testButtonText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
