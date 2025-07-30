@@ -77,6 +77,7 @@ export interface InspectionContextType {
   setCurrentInspection: (inspection: Inspection | null) => void;
   addInspectionItem: (item: InspectionItem) => Promise<void>;
   updateInspectionItem: (itemId: string, updates: Partial<InspectionItem>) => Promise<void>;
+  updateInspection: (inspectionId: string, updates: Partial<Inspection>) => Promise<void>;
   deleteInspectionItem: (itemId: string) => Promise<void>;
   deleteInspection: (inspectionId: string) => Promise<void>;
 }

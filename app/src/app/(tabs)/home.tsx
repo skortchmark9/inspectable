@@ -8,6 +8,7 @@ import {
   Alert,
   ActivityIndicator,
   FlatList,
+  TextInput,
 } from 'react-native';
 import { router } from 'expo-router';
 import * as Location from 'expo-location';
@@ -16,9 +17,11 @@ import { useLocation } from '@/hooks/useLocation';
 import { Inspection } from '@/types';
 
 export default function HomeScreen() {
-  const { currentInspection, inspections, createInspection, setCurrentInspection, deleteInspection } = useInspection();
+  const { currentInspection, inspections, createInspection, setCurrentInspection, deleteInspection, updateInspection } = useInspection();
   const location = useLocation();
   const [isCreating, setIsCreating] = useState(false);
+  const [editingInspection, setEditingInspection] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState('');
 
   const handleNewInspection = async () => {
     setIsCreating(true);
@@ -137,6 +140,35 @@ export default function HomeScreen() {
     );
   };
 
+  const handleRenameInspection = (inspection: Inspection) => {
+    setEditingInspection(inspection.id);
+    setEditingName(inspection.name);
+  };
+
+  const handleSaveRename = async () => {
+    if (!editingInspection || !editingName.trim()) return;
+    
+    try {
+      console.log(`🏷️ Renaming inspection ${editingInspection} to "${editingName.trim()}"`);
+      await updateInspection(editingInspection, { name: editingName.trim() });
+      console.log(`✅ Inspection renamed successfully`);
+      setEditingInspection(null);
+      setEditingName('');
+    } catch (error: any) {
+      console.error('❌ Failed to rename inspection:', error);
+      Alert.alert(
+        'Error',
+        `Failed to rename inspection: ${error.message}`,
+        [{ text: 'OK' }]
+      );
+    }
+  };
+
+  const handleCancelRename = () => {
+    setEditingInspection(null);
+    setEditingName('');
+  };
+
   const formatDate = (date: Date) => {
     try {
       return date.toLocaleDateString() + ' at ' + date.toLocaleTimeString([], { 
@@ -150,6 +182,7 @@ export default function HomeScreen() {
 
   const renderInspectionItem = ({ item }: { item: Inspection }) => {
     const isCurrentInspection = currentInspection?.id === item.id;
+    const isEditing = editingInspection === item.id;
     
     return (
       <View style={[
@@ -164,34 +197,72 @@ export default function HomeScreen() {
             <Text style={styles.currentTag}>CURRENT</Text>
           )}
         </View>
-        <Text style={styles.cardName}>{item.name}</Text>
-        <Text style={styles.cardDate}>{formatDate(item.createdAt)}</Text>
-        <Text style={styles.cardItems}>
-          {Object.keys(item.items || {}).length} items captured
-        </Text>
         
-        <View style={styles.buttonRow}>
-          <TouchableOpacity
-            style={[
-              styles.button, 
-              styles.primaryButton,
-              isCurrentInspection ? styles.continueButton : styles.resumeButton
-            ]}
-            onPress={() => handleResumeInspection(item)}
-          >
-            <Text style={styles.buttonText}>
-              {isCurrentInspection ? 'Continue' : 
-               item.status === 'active' ? 'Resume' : 'View'}
+        {isEditing ? (
+          <View style={styles.editNameContainer}>
+            <TextInput
+              style={styles.nameInput}
+              value={editingName}
+              onChangeText={setEditingName}
+              placeholder="Inspection name..."
+              placeholderTextColor="#666"
+              autoFocus
+              onSubmitEditing={handleSaveRename}
+            />
+            <View style={styles.editButtonRow}>
+              <TouchableOpacity
+                style={[styles.button, styles.saveButton]}
+                onPress={handleSaveRename}
+              >
+                <Text style={styles.saveButtonText}>Save</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.button, styles.cancelButton]}
+                onPress={handleCancelRename}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : (
+          <>
+            <Text style={styles.cardName}>{item.name}</Text>
+            <Text style={styles.cardDate}>{formatDate(item.createdAt)}</Text>
+            <Text style={styles.cardItems}>
+              {Object.keys(item.items || {}).length} items captured
             </Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity
-            style={[styles.button, styles.deleteButton]}
-            onPress={() => handleDeleteInspection(item)}
-          >
-            <Text style={styles.deleteButtonText}>Delete</Text>
-          </TouchableOpacity>
-        </View>
+            
+            <View style={styles.buttonRow}>
+              <TouchableOpacity
+                style={[
+                  styles.button, 
+                  styles.primaryButton,
+                  isCurrentInspection ? styles.continueButton : styles.resumeButton
+                ]}
+                onPress={() => handleResumeInspection(item)}
+              >
+                <Text style={styles.buttonText}>
+                  {isCurrentInspection ? 'Continue' : 
+                   item.status === 'active' ? 'Resume' : 'View'}
+                </Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.button, styles.renameButton]}
+                onPress={() => handleRenameInspection(item)}
+              >
+                <Text style={styles.renameButtonText}>Rename</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.button, styles.deleteButton]}
+                onPress={() => handleDeleteInspection(item)}
+              >
+                <Text style={styles.deleteButtonText}>Delete</Text>
+              </TouchableOpacity>
+            </View>
+          </>
+        )}
       </View>
     );
   };
@@ -323,7 +394,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   primaryButton: {
-    flex: 1,
+    flex: 2,
   },
   resumeButton: {
     backgroundColor: '#007AFF',
@@ -331,9 +402,13 @@ const styles = StyleSheet.create({
   continueButton: {
     backgroundColor: '#34C759',
   },
+  renameButton: {
+    backgroundColor: '#FF9500',
+    paddingHorizontal: 16,
+  },
   deleteButton: {
     backgroundColor: '#FF3B30',
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
   },
   newButton: {
     backgroundColor: '#34C759',
@@ -344,9 +419,14 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
   },
+  renameButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
   deleteButtonText: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
   },
   emptyState: {
@@ -360,5 +440,41 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: 'center',
     lineHeight: 24,
+  },
+  editNameContainer: {
+    marginBottom: 16,
+  },
+  nameInput: {
+    backgroundColor: '#333',
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '600',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#007AFF',
+  },
+  editButtonRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  saveButton: {
+    backgroundColor: '#34C759',
+    flex: 1,
+  },
+  cancelButton: {
+    backgroundColor: '#666',
+    flex: 1,
+  },
+  saveButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  cancelButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

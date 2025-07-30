@@ -88,11 +88,7 @@ export function InspectionProvider({ children }: InspectionProviderProps) {
           
           const inspection: Inspection = {
             id: backendInspection.id,
-            name: `${new Date(backendInspection.created_at).toLocaleDateString('en-US', { 
-              month: 'short', 
-              day: 'numeric', 
-              year: 'numeric' 
-            })} - ${backendInspection.property_address}`,
+            name: backendInspection.property_address,
             location: {              
               latitude: backendInspection.metadata?.latitude || 37.7749, // Try metadata or default
               longitude: backendInspection.metadata?.longitude || -122.4194,
@@ -129,11 +125,7 @@ export function InspectionProvider({ children }: InspectionProviderProps) {
           console.error('Failed to load details for inspection:', backendInspection.id, detailError);
           return {
             id: backendInspection.id,
-            name: `${new Date(backendInspection.created_at).toLocaleDateString('en-US', { 
-              month: 'short', 
-              day: 'numeric', 
-              year: 'numeric' 
-            })} - ${backendInspection.property_address}`,
+            name: backendInspection.property_address,
             location: {
               latitude: backendInspection.metadata?.latitude || 37.7749,
               longitude: backendInspection.metadata?.longitude || -122.4194,
@@ -169,9 +161,9 @@ export function InspectionProvider({ children }: InspectionProviderProps) {
               backendMatch.items[item.id] = item;
             });
           } else {
-            // Local inspection doesn't exist on backend - keep it
-            //@SAM MAYBE WE SHOULD SYNC IT THEN
-            console.log(`🔄 Preserving local-only inspection ${localInspection.id}`);
+            // Local inspection doesn't exist on backend - sync it
+            console.log(`🔄 Local-only inspection ${localInspection.id} needs backend sync`);
+            syncLocalInspectionToBackend(localInspection);
             merged.push(localInspection);
           }
         });
@@ -183,6 +175,36 @@ export function InspectionProvider({ children }: InspectionProviderProps) {
       console.error('❌ Failed to load inspections from backend:', error);
     }
   }, []);
+
+  const syncLocalInspectionToBackend = useCallback(async (localInspection: Inspection) => {
+    try {
+      console.log(`🔄 Syncing local inspection ${localInspection.id} to backend...`);
+      
+      // Create inspection on backend using the address from location
+      const backendInspection = await apiClient.createInspection(
+        localInspection.location?.address || 'Local Inspection'
+      );
+      
+      console.log(`✅ Created backend inspection ${backendInspection.id} for local ${localInspection.id}`);
+      
+      // Update the local inspection with the backend ID
+      setInspections(prev => prev.map(inspection => 
+        inspection.id === localInspection.id 
+          ? { ...inspection, id: backendInspection.id }
+          : inspection
+      ));
+      
+      // Update current inspection ID if this was the active one
+      if (currentInspectionId === localInspection.id) {
+        setCurrentInspectionId(backendInspection.id);
+        await AsyncStorage.setItem(STORAGE_KEYS.CURRENT_INSPECTION, backendInspection.id);
+      }
+      
+    } catch (error) {
+      console.error(`❌ Failed to sync local inspection ${localInspection.id} to backend:`, error);
+      // Keep the local inspection even if sync fails
+    }
+  }, [currentInspectionId]);
 
   const debouncedSaveToStorage = useCallback((inspectionsToSave: Inspection[]) => {
     if (saveTimeoutRef.current) {
@@ -334,6 +356,36 @@ export function InspectionProvider({ children }: InspectionProviderProps) {
     });
   }, [currentInspectionId, debouncedSaveToStorage]);
 
+  const updateInspection = useCallback(async (inspectionId: string, updates: Partial<Inspection>) => {
+    console.log(`🔄 Updating inspection ${inspectionId}:`, updates);
+    
+    // Update local state immediately
+    setInspections(prev => {
+      const updated = prev.map(inspection => 
+        inspection.id === inspectionId 
+          ? { ...inspection, ...updates }
+          : inspection
+      );
+      debouncedSaveToStorage(updated);
+      return updated;
+    });
+
+    // Try to sync to backend if it's a name change
+    if (updates.name) {
+      try {
+        console.log(`🔄 Syncing name change to backend for inspection ${inspectionId}`);
+        await apiClient.updateInspection(inspectionId, {
+          property_address: updates.name
+        });
+        console.log(`✅ Successfully synced name change to backend`);
+      } catch (error) {
+        console.error(`❌ Failed to sync name change to backend:`, error);
+        // Local update already happened, so we don't throw - just warn user
+        // Could show a toast/alert here if needed
+      }
+    }
+  }, [debouncedSaveToStorage]);
+
   const deleteInspection = useCallback(async (inspectionId: string) => {
     try {
       // Try to delete from backend first
@@ -364,6 +416,7 @@ export function InspectionProvider({ children }: InspectionProviderProps) {
     setCurrentInspection,
     addInspectionItem,
     updateInspectionItem,
+    updateInspection,
     deleteInspectionItem,
     deleteInspection,
   };

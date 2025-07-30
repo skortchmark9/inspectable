@@ -57,21 +57,8 @@ export default function InspectScreen() {
     }
   }, [audioRecorder.hasPermission, isActive, currentInspection]);
 
-  // If no current inspection, show message
-  if (!currentInspection) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.noInspectionContainer}>
-          <Text style={styles.noInspectionText}>No inspection selected</Text>
-          <Text style={styles.noInspectionSubtext}>
-            Please select or create an inspection from the Home tab
-          </Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
   const handleCapture = useCallback(async () => {
+    if (!currentInspection) return; // Guard clause for safety
     if (isCapturing || !camera.hasPermission) return;
 
     try {
@@ -145,17 +132,31 @@ export default function InspectScreen() {
   }, [isCapturing, camera, audioRecorder, location, currentInspection, addInspectionItem]);
 
   // Get last photo from inspection items (sorted by timestamp)
-  const getItemsArray = () => {
+  const getItemsArray = useCallback(() => {
     if (!currentInspection?.items) return [];
     return Object.values(currentInspection.items).sort((a, b) => 
       new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
     );
-  };
+  }, [currentInspection]);
 
   const itemsArray = getItemsArray();
   const lastPhotoUri = itemsArray.length > 0 
     ? itemsArray[itemsArray.length - 1].photoUri 
     : null;
+
+  // If no current inspection, show message
+  if (!currentInspection) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.noInspectionContainer}>
+          <Text style={styles.noInspectionText}>No inspection selected</Text>
+          <Text style={styles.noInspectionSubtext}>
+            Please select or create an inspection from the Home tab
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
     
 
   return (

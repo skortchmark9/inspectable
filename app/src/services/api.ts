@@ -225,9 +225,9 @@ class InspectionAPIClient {
     }
   }
 
-  async getInspections(): Promise<BackendInspectionListResponse[]> {
+  async getInspections(limit: number = 1000, page: number = 1): Promise<BackendInspectionListResponse[]> {
     const headers = await this.getAuthHeaders();
-    const response = await fetch(`${BASE_URL}/inspections`, {
+    const response = await fetch(`${BASE_URL}/inspections?limit=${limit}&page=${page}`, {
       method: 'GET',
       headers: headers,
     });
@@ -249,6 +249,24 @@ class InspectionAPIClient {
     const data = await response.json();
     if (!data.success) {
       throw new Error(data.error || 'Failed to get inspection');
+    }
+    return data.data;
+  }
+
+  async updateInspection(id: string, updates: { property_address?: string; status?: string; metadata?: any }): Promise<any> {
+    const headers = await this.getAuthHeaders();
+    const response = await fetch(`${BASE_URL}/inspections/${id}`, {
+      method: 'PUT',
+      headers: {
+        ...headers,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(updates),
+    });
+
+    const data = await response.json();
+    if (!data.success) {
+      throw new Error(data.error || 'Failed to update inspection');
     }
     return data.data;
   }
